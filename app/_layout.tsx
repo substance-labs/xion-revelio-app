@@ -1,5 +1,5 @@
+import "../polyfills";
 import "react-native-reanimated";
-import "react-native-get-random-values";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import {
@@ -15,11 +15,6 @@ import { AbstraxionProvider } from "@burnt-labs/abstraxion-react-native";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-
-import { Buffer } from "buffer";
-import crypto from "react-native-quick-crypto";
-global.crypto = crypto;
-global.Buffer = Buffer;
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();

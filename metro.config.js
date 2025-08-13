@@ -6,4 +6,5 @@ const {
 
 const config = getDefaultConfig(__dirname);
 config.resolver.unstable_enablePackageExports = false;
+
 module.exports = withLibsodiumResolver(config);
