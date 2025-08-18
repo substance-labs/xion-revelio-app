@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
@@ -7,7 +7,8 @@ import { useBubbles } from '@/hooks/useBubbles';
 import { BubblesList } from '@/components/bubbles/BubblesList';
 import { CreateBubbleWizard } from '@/components/bubbles/CreateBubbleWizard';
 import { CreateBubbleButton } from '@/components/bubbles/CreateBubbleButton';
-import { BubbleMetadata } from '@/types/bubble';
+import { useAbstraxionAccount } from '@/lib/abstraxion';
+import { CreateBubbleFormData } from '@/types/bubble';
 
 if (!process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS) {
   throw new Error("EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS is not set in your environment file");
@@ -15,45 +16,40 @@ if (!process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS) {
 
 export default function Bubbles() {
   const backgroundColor = useThemeColor({}, 'background');
+  const accentColor = useThemeColor({}, 'tint');
   const router = useRouter();
   
-  const {
-    bubbles,
-    userVerifications,
-    refreshing,
-    isConnected,
-    account,
-    client,
-    queryClient,
-    createBubble,
-    verifyForBubble,
-    onRefresh
+  const { 
+    bubbles, 
+    isLoading,
+    error,
+    refetch,
+    createBubble
   } = useBubbles();
+
+  const { data: account, isConnected, login } = useAbstraxionAccount();
 
   // State for components
   const [showCreateWizard, setShowCreateWizard] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [verifyingBubble, setVerifyingBubble] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const contractAddress = process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS as string;
-
-  const handleCreateBubble = async (formData: any) => {
-    setCreateLoading(true);
-    const success = await createBubble(formData);
-    setCreateLoading(false);
-    return success;
+  const handleCreateBubble = async (formData: CreateBubbleFormData): Promise<boolean> => {
+    setIsCreating(true);
+    try {
+      await createBubble(formData);
+      return true;
+    } catch (error) {
+      console.error('Error creating bubble:', error);
+      return false;
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleVerifyBubble = async (bubbleId: string) => {
-    setVerifyingBubble(bubbleId);
-    await verifyForBubble(bubbleId);
-    setVerifyingBubble(null);
-  };
-
-  const enterBubble = (bubble: BubbleMetadata) => {
+  const enterBubble = (bubble: any) => {
     router.push({
       pathname: '/bubble/[id]',
-      params: { id: bubble.id, name: bubble.name }
+      params: { id: bubble.id }
     });
   };
 
@@ -63,51 +59,40 @@ export default function Bubbles() {
         style={styles.container} 
         contentContainerStyle={styles.contentContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
         }
       >
         <ThemedText type="title" style={styles.title}>
           Bubbles
         </ThemedText>
         <ThemedText style={styles.subtitle}>
-          Verified member chat spaces for communities
+          Chat spaces for communities
         </ThemedText>
 
-        {/* Create Bubble Button - only show when connected */}
-        {isConnected && (
+        {!isConnected ? (
+          <TouchableOpacity 
+            style={[styles.connectToCreateButton, { backgroundColor: accentColor }]}
+            onPress={login || (() => console.log('Login not available'))}
+          >
+            <ThemedText style={styles.connectButtonText}>Connect Wallet to Create Bubble</ThemedText>
+          </TouchableOpacity>
+        ) : (
           <CreateBubbleButton
             onPress={() => setShowCreateWizard(true)}
-            account={account}
-            client={client}
-            queryClient={queryClient}
-            contractAddress={contractAddress}
-            onRefresh={onRefresh}
           />
         )}
-
-        {!isConnected ? (
-          <View style={styles.connectPrompt}>
-            <ThemedText style={styles.connectText}>
-              Connect your wallet to join bubbles
-            </ThemedText>
-          </View>
-        ) : (
-          <BubblesList
-            bubbles={bubbles}
-            userVerifications={userVerifications}
-            verifyingBubble={verifyingBubble}
-            onVerify={handleVerifyBubble}
-            onEnter={enterBubble}
-          />
-        )}
+        
+        <BubblesList 
+          bubbles={bubbles}
+          onBubblePress={enterBubble}
+        />
       </ScrollView>
 
-      {/* Create Bubble Wizard Modal */}
       <CreateBubbleWizard
         visible={showCreateWizard}
         onClose={() => setShowCreateWizard(false)}
         onCreate={handleCreateBubble}
-        loading={createLoading}
+        loading={isCreating}
       />
     </View>
   );
@@ -119,25 +104,57 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 40,
   },
   title: {
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     textAlign: 'center',
     fontSize: 16,
     opacity: 0.7,
-    marginBottom: 30,
+    marginBottom: 20,
   },
   connectPrompt: {
+    padding: 20,
     alignItems: 'center',
-    marginTop: 50,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 10,
+    marginVertical: 20,
   },
   connectText: {
-    fontSize: 16,
-    opacity: 0.7,
+    marginBottom: 15,
     textAlign: 'center',
+    opacity: 0.8,
+  },
+  connectButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  connectToCreateButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  connectButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  createButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  createButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

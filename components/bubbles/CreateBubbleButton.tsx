@@ -3,25 +3,12 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { DebugTools } from './DebugTools';
 
 interface CreateBubbleButtonProps {
   onPress: () => void;
-  account: any;
-  client: any;
-  queryClient: any;
-  contractAddress: string;
-  onRefresh: () => void;
 }
 
-export function CreateBubbleButton({ 
-  onPress, 
-  account, 
-  client, 
-  queryClient, 
-  contractAddress, 
-  onRefresh 
-}: CreateBubbleButtonProps) {
+export function CreateBubbleButton({ onPress }: CreateBubbleButtonProps) {
   const tintColor = useThemeColor({}, 'tint');
 
   return (
@@ -36,16 +23,8 @@ export function CreateBubbleButton({
         </ThemedText>
       </TouchableOpacity>
       <ThemedText style={styles.createBubbleDescription}>
-        Start your own verified member community
+        Start your own community chat space
       </ThemedText>
-      
-      {/* <DebugTools
-        account={account}
-        client={client}
-        queryClient={queryClient}
-        contractAddress={contractAddress}
-        onRefresh={onRefresh}
-      /> */}
     </View>
   );
 }

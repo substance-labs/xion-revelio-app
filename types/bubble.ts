@@ -2,25 +2,14 @@ export type BubbleMetadata = {
   id: string;
   name: string;
   description: string;
-  verified: boolean;
+  domain: string;
   createdAt: string;
   createdBy: string;
   permissions: {
-    read: 'public' | 'verified';
-    write: 'public' | 'verified' | 'admins';
-  };
-  settings: {
-    allowAnonymous: boolean;
-    requireVerification: boolean;
+    read: 'public';
+    write: 'public' | 'admins';
   };
   memberCount?: number;
-};
-
-export type UserVerification = {
-  userId: string;
-  bubbleId: string;
-  verified: boolean;
-  verifiedAt: string;
 };
 
 export type CreateBubbleFormData = {
@@ -28,11 +17,7 @@ export type CreateBubbleFormData = {
   description: string;
   domain: string;
   permissions: {
-    read: 'public' | 'verified';
-    write: 'public' | 'verified' | 'admins';
-  };
-  settings: {
-    allowAnonymous: boolean;
-    requireVerification: boolean;
+    read: 'public';
+    write: 'public' | 'admins';
   };
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Switch } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -26,11 +26,7 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
     domain: '',
     permissions: {
       read: 'public',
-      write: 'verified'
-    },
-    settings: {
-      allowAnonymous: false,
-      requireVerification: true
+      write: 'public'
     }
   });
 
@@ -41,11 +37,7 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
       domain: '',
       permissions: {
         read: 'public',
-        write: 'verified'
-      },
-      settings: {
-        allowAnonymous: false,
-        requireVerification: true
+        write: 'public'
       }
     });
   };
@@ -148,34 +140,27 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
             <View style={styles.permissionGroup}>
               <ThemedText style={styles.permissionLabel}>Who can read posts?</ThemedText>
               <View style={styles.permissionOptions}>
-                {(['public', 'verified'] as const).map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.permissionOption,
-                      formData.permissions.read === option && { backgroundColor: tintColor },
-                      { borderColor: borderColor }
-                    ]}
-                    onPress={() => setFormData(prev => ({
-                      ...prev,
-                      permissions: { ...prev.permissions, read: option }
-                    }))}
-                  >
-                    <ThemedText style={[
-                      styles.permissionOptionText,
-                      formData.permissions.read === option && { color: '#fff' }
-                    ]}>
-                      {option === 'verified' ? 'Verified Members' : option.charAt(0).toUpperCase() + option.slice(1)}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                <TouchableOpacity
+                  style={[
+                    styles.permissionOption,
+                    { backgroundColor: tintColor },
+                    { borderColor: borderColor }
+                  ]}
+                >
+                  <ThemedText style={[
+                    styles.permissionOptionText,
+                    { color: '#fff' }
+                  ]}>
+                    Public
+                  </ThemedText>
+                </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.permissionGroup}>
               <ThemedText style={styles.permissionLabel}>Who can write posts?</ThemedText>
               <View style={styles.permissionOptions}>
-                {(['public', 'verified', 'admins'] as const).map((option) => (
+                {(['public', 'admins'] as const).map((option) => (
                   <TouchableOpacity
                     key={option}
                     style={[
@@ -192,37 +177,13 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
                       styles.permissionOptionText,
                       formData.permissions.write === option && { color: '#fff' }
                     ]}>
-                      {option === 'verified' ? 'Verified Members' : option.charAt(0).toUpperCase() + option.slice(1)}
+                      {option.charAt(0).toUpperCase() + option.slice(1)}
                     </ThemedText>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
           </View>
-
-          {/* Settings */}
-          {/* <View style={styles.formSection}>
-            <ThemedText type="subtitle" style={styles.sectionTitle}>
-              Settings
-            </ThemedText>
-
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <ThemedText style={styles.settingLabel}>Require Verification</ThemedText>
-                <ThemedText style={styles.settingDescription}>
-                  Only verified members can participate
-                </ThemedText>
-              </View>
-              <Switch
-                value={formData.settings.requireVerification}
-                onValueChange={(value) => setFormData(prev => ({
-                  ...prev,
-                  settings: { ...prev.settings, requireVerification: value }
-                }))}
-                trackColor={{ false: '#767577', true: tintColor }}
-              />
-            </View>
-          </View> */}
 
           {/* Create and Cancel Buttons */}
           <View style={styles.buttonContainer}>
@@ -339,27 +300,6 @@ const styles = StyleSheet.create({
   permissionOptionText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: 15,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  settingDescription: {
-    fontSize: 12,
-    opacity: 0.6,
   },
   buttonContainer: {
     flexDirection: 'row',

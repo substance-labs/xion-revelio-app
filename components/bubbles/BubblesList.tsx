@@ -5,32 +5,21 @@ import { BubbleMetadata } from '@/types/bubble';
 
 interface BubblesListProps {
   bubbles: BubbleMetadata[];
-  userVerifications: { [bubbleId: string]: boolean };
-  verifyingBubble: string | null;
-  onVerify: (bubbleId: string) => void;
-  onEnter: (bubble: BubbleMetadata) => void;
+  onBubblePress: (bubble: BubbleMetadata) => void;
 }
 
 export function BubblesList({ 
   bubbles, 
-  userVerifications, 
-  verifyingBubble, 
-  onVerify, 
-  onEnter 
+  onBubblePress
 }: BubblesListProps) {
   return (
     <View style={styles.container}>
       {bubbles.map((bubble) => {
-        const isUserVerified = userVerifications[bubble.id] || false;
-
         return (
           <BubbleCard
             key={bubble.id}
             bubble={bubble}
-            isUserVerified={isUserVerified}
-            verifyingBubble={verifyingBubble}
-            onVerify={onVerify}
-            onEnter={onEnter}
+            onPress={() => onBubblePress(bubble)}
           />
         );
       })}

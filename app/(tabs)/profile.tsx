@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, TextInput, Image, Linking, AppState } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, TextInput, Image, Linking, AppState, Platform } from "react-native";
+
+// Clean platform-specific imports for Abstraxion hooks
 import {
   useAbstraxionAccount,
-  useAbstraxionSigningClient,
-  useAbstraxionClient,
-} from "@burnt-labs/abstraxion-react-native";
+  useAbstraxionClient
+} from '@/lib/abstraxion';
+
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { IconSymbol } from "@/components/ui/IconSymbol";
@@ -29,11 +31,9 @@ type Profile = {
 
 export default function Profile() {
   // Abstraxion hooks
-  const { data: account, login, isConnected, isConnecting } = useAbstraxionAccount();
-  const { client } = useAbstraxionSigningClient();
-  const { client: queryClient } = useAbstraxionClient();
-
-  // Theme colors
+  const { data: account, login, isConnected } = useAbstraxionAccount();
+  const { client } = useAbstraxionClient();
+  const { client: queryClient } = useAbstraxionClient();  // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
   const borderColor = useThemeColor({}, 'border');
   const textColor = useThemeColor({}, 'text');
@@ -43,6 +43,7 @@ export default function Profile() {
 
   // State variables
   const [loading, setLoading] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [editedProfile, setEditedProfile] = useState<Profile>({
@@ -322,12 +323,23 @@ export default function Profile() {
         {!isConnected ? (
           <View style={themedStyles.connectButtonContainer}>
             <TouchableOpacity
-              onPress={login}
-              style={[themedStyles.menuButton, themedStyles.fullWidthButton, isConnecting && themedStyles.disabledButton]}
-              disabled={isConnecting}
+              onPress={async () => {
+                if (!account?.bech32Address) {
+                  setIsLoggingIn(true);
+                  try {
+                    await login();
+                  } catch (error) {
+                    console.error('Login failed:', error);
+                  } finally {
+                    setIsLoggingIn(false);
+                  }
+                }
+              }}
+              style={[themedStyles.menuButton, themedStyles.fullWidthButton, isLoggingIn && themedStyles.disabledButton]}
+              disabled={isLoggingIn}
             >
               <ThemedText style={themedStyles.buttonText}>
-                {isConnecting ? "Connecting..." : "Connect Wallet"}
+                {isLoggingIn ? "Connecting..." : "Connect Wallet"}
               </ThemedText>
             </TouchableOpacity>
           </View>
