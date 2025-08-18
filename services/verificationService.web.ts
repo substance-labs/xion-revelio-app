@@ -2,6 +2,7 @@ import { BubbleVerification, VerificationResult, VerificationRequest } from '@/t
 
 export interface VerificationServiceDependencies {
   client: any;
+  signingClient?: any;
   account: { bech32Address: string } | null;
   contractAddress: string;
   collectionName?: string;
@@ -52,6 +53,10 @@ export class VerificationService {
     return false;
   }
 
+  isReclaimAvailable(): boolean {
+    return false;
+  }
+
   getVerificationStatusMessage(): string {
     return 'Web verification not yet supported. Please use the mobile app for verification.';
   }
@@ -61,8 +66,8 @@ export function createVerificationService(dependencies: VerificationServiceDepen
   return new VerificationService(dependencies);
 }
 
-export function createPlatformVerificationService(dependencies: VerificationServiceDependencies) {
-  return createVerificationService(dependencies);
+export function createPlatformVerificationService(dependencies: VerificationServiceDependencies): VerificationService {
+  return new VerificationService(dependencies);
 }
 
 export * from '@/types/bubble';

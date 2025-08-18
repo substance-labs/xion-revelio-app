@@ -26,7 +26,6 @@ export function useVerification() {
    * Start verification process for a bubble
    */
   const startVerification = useCallback(async (request: VerificationRequest): Promise<VerificationResult> => {
-    console.log("starting")
     setIsLoading(true);
     setError(null);
 

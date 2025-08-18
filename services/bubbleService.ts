@@ -48,8 +48,6 @@ export class BubbleService {
     }
 
     try {
-      console.log('Fetching all bubbles in the collection...');
-      
       const response = await this.client.queryContractSmart(this.contractAddress, {
         Collection: {
           collection: this.collectionName
@@ -57,20 +55,14 @@ export class BubbleService {
       });
 
       if (!response?.documents) {
-        console.log('No documents found in response');
         return [];
       }
-
-      console.log(`Found ${response.documents.length} bubble documents`);
       
       const bubbles: BubbleMetadata[] = [];
       
       response.documents.forEach(([key, doc]: [string, any]) => {
         try {
           const bubbleData = JSON.parse(doc.data);
-        //   console.log(`Processing bubble ${key}:`, bubbleData);
-          
-          if (doc.name) console.log(`hello ${bubbleData}`)
 
           if (this.isValidBubbleMetadata(bubbleData)) {
             bubbles.push(bubbleData as BubbleMetadata);
@@ -82,10 +74,6 @@ export class BubbleService {
         }
       });
 
-      console.log(`Successfully processed ${bubbles.length} bubbles`);
-      console.log(`Successfully fetched ${bubbles.length} bubbles`);    
-
-    //   console.log(response.documents)
       return bubbles;
     } catch (error) {
       console.error('Error fetching all bubbles:', error);
@@ -97,18 +85,11 @@ export class BubbleService {
    * Fetch bubbles owned by the current user
    */
   async fetchUserBubbles(): Promise<BubbleMetadata[]> {
-    if (!this.client) {
-      throw new Error('Client not available');
-    }
-
     if (!this.account?.bech32Address) {
-      console.log('No account available, returning empty bubbles list');
       return [];
     }
 
     try {
-      console.log(`Fetching bubbles for user: ${this.account.bech32Address}`);
-      
       const response = await this.client.queryContractSmart(this.contractAddress, {
         UserDocuments: {
           owner: this.account.bech32Address,
@@ -117,18 +98,14 @@ export class BubbleService {
       });
 
       if (!response?.documents) {
-        console.log('No documents found in response');
         return [];
       }
-
-      console.log(`Found ${response.documents.length} user bubble documents`);
       
       const bubbles: BubbleMetadata[] = [];
       
       response.documents.forEach(([key, doc]: [string, any]) => {
         try {
           const bubbleData = JSON.parse(doc.data);
-          console.log(`Processing user bubble ${key}:`, bubbleData);
           
           if (this.isValidBubbleMetadata(bubbleData)) {
             bubbles.push(bubbleData as BubbleMetadata);
@@ -140,7 +117,6 @@ export class BubbleService {
         }
       });
 
-      console.log(`Successfully processed ${bubbles.length} user bubbles`);
       return bubbles;
     } catch (error) {
       console.error('Error fetching user bubbles:', error);
@@ -161,9 +137,6 @@ export class BubbleService {
     }
 
     try {
-      console.log('Creating new bubble:', formData);
-      
-      // Create the bubble metadata
       const bubbleData: BubbleMetadata = {
         id: `bubble_${Date.now()}`,
         name: formData.name,
@@ -173,13 +146,10 @@ export class BubbleService {
         createdBy: this.account.bech32Address,
         permissions: formData.permissions,
         verification: formData.verification,
-        verifications: [], // Initialize empty verifications array
+        verifications: [],
         memberCount: 1
       };
 
-      console.log('Generated bubble data:', bubbleData);
-
-      // Store the bubble in DocuStore
       await this.client.execute(
         this.account.bech32Address,
         this.contractAddress,
@@ -193,7 +163,6 @@ export class BubbleService {
         "auto"
       );
 
-      console.log('Successfully created bubble:', bubbleData.id);
       return bubbleData;
     } catch (error) {
       console.error('Error creating bubble:', error);

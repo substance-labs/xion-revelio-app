@@ -4,7 +4,8 @@ import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, TextInput, Image
 // Clean platform-specific imports for Abstraxion hooks
 import {
   useAbstraxionAccount,
-  useAbstraxionClient
+  useAbstraxionClient,
+  useAbstraxionSigningClient
 } from '@/lib/abstraxion';
 
 import { ThemedText } from "@/components/ThemedText";
@@ -33,6 +34,7 @@ export default function Profile() {
   // Abstraxion hooks
   const { data: account, login, isConnected } = useAbstraxionAccount();
   const { client } = useAbstraxionClient();
+  const { client: signingClient } = useAbstraxionSigningClient();
   const { client: queryClient } = useAbstraxionClient();  // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
   const borderColor = useThemeColor({}, 'border');
@@ -249,11 +251,11 @@ export default function Profile() {
 
   // Update profile
   const updateProfile = async () => {
-    if (!client || !account) return;
+    if (!signingClient || !account) return;
     
     setLoading(true);
     try {
-      await client.execute(
+      await signingClient.execute(
         account.bech32Address,
         contractAddress,
         {

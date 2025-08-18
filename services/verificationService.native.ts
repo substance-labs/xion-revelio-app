@@ -33,9 +33,7 @@ export class VerificationService {
 
   private async initializeReclaimClient() {
     try {
-      // Initialize Reclaim verification instance
       this.reclaimVerification = new ReclaimVerification();
-      console.log('ReclaimVerification client initialized');
     } catch (error) {
       console.error('Failed to initialize ReclaimVerification client:', error);
     }
@@ -75,12 +73,8 @@ export class VerificationService {
    * Start verification process using ReclaimProtocol
    */
   async startVerification(request: VerificationRequest): Promise<VerificationResult> {
-    console.log('[VerificationService] Starting verification process');
-    
-    // Check if Reclaim is available before proceeding
     if (!this.isReclaimAvailable()) {
       const errorMessage = this.getVerificationStatusMessage();
-      console.error('[VerificationService] Reclaim not available:', errorMessage);
       return { success: false, error: errorMessage };
     }
 
@@ -103,9 +97,6 @@ export class VerificationService {
           providerId: process.env.EXPO_PUBLIC_RECLAIM_PROVIDER_ID ?? '',
         });
       } catch (reclaimError: any) {
-        console.error('[VerificationService] Reclaim startVerification failed:', reclaimError);
-        
-        // Handle specific Reclaim errors
         if (reclaimError.constructor.name === 'ReclaimVerificationException') {
           const errorMessage = this.handleReclaimException(reclaimError);
           return { success: false, error: errorMessage };
@@ -153,13 +144,9 @@ export class VerificationService {
         provider: request.provider
       });
 
-      console.log('Verification successful:', proof);
       return { success: true, proof };
 
     } catch (error: any) {
-      console.error('Verification failed:', error);
-      
-      // Handle ReclaimVerification exceptions according to documentation
       if (error.constructor.name === 'ReclaimVerificationException') {
         const errorMessage = this.handleReclaimException(error);
         return { success: false, error: errorMessage };
@@ -221,7 +208,6 @@ export class VerificationService {
         verifications
       };
 
-      // Save to DocuStore using signing client
       await this.signingClient.execute(
         this.account.bech32Address,
         this.contractAddress,
@@ -235,7 +221,6 @@ export class VerificationService {
         "auto"
       );
 
-      console.log(`Verification saved for user ${verification.walletAddress} in bubble ${bubbleId}`);
     } catch (error) {
       console.error('Error saving verification to bubble:', error);
       throw error;
@@ -247,15 +232,10 @@ export class VerificationService {
    */
   private async getBubbleById(bubbleId: string): Promise<any> {
     if (!this.client) {
-      console.error('[VerificationService] Client not available for getBubbleById');
       throw new Error('Client not available');
     }
 
     try {
-      console.log(`[VerificationService] Querying bubble ${bubbleId} from contract ${this.contractAddress}`);
-      console.log(`[VerificationService] Collection: ${this.collectionName}`);
-      console.log(`[VerificationService] Client type:`, typeof this.client);
-      
       const response = await this.client.queryContractSmart(this.contractAddress, {
         Get: {
           collection: this.collectionName,
@@ -263,22 +243,16 @@ export class VerificationService {
         }
       });
 
-      console.log(`[VerificationService] Raw response for bubble ${bubbleId}:`, response);
-
       if (!response?.document?.data) {
-        // Try fallback format in case response structure is different
         if (!response?.data) {
-          console.log(`[VerificationService] No data found for bubble ${bubbleId}`);
           return null;
         }
-        console.log(`[VerificationService] Using fallback response format for bubble ${bubbleId}`);
         return JSON.parse(response.data);
       }
 
-      console.log(`[VerificationService] Parsing document data for bubble ${bubbleId}`);
       return JSON.parse(response.document.data);
     } catch (error) {
-      console.error(`[VerificationService] Error fetching bubble ${bubbleId}:`, error);
+      console.error(`Error fetching bubble ${bubbleId}:`, error);
       throw error;
     }
   }
@@ -351,55 +325,33 @@ export class VerificationService {
    */
   async checkAccess(bubbleId: string, walletAddress: string, action: 'read' | 'write'): Promise<boolean> {
     try {
-      console.log(`[VerificationService] checkAccess called with bubbleId: ${bubbleId}, walletAddress: "${walletAddress}", action: ${action}`);
-      
-      // If no wallet address provided, only allow public read access
       if (!walletAddress || walletAddress.trim() === '') {
-        console.log(`[VerificationService] No wallet address provided, checking for public ${action} access`);
         const bubble = await this.getBubbleById(bubbleId);
-        if (!bubble) {
-          console.log(`[VerificationService] Bubble ${bubbleId} not found`);
-          return false;
-        }
-        const result = bubble.permissions[action] === 'public';
-        console.log(`[VerificationService] Public access check result: ${result}`);
-        return result;
+        return bubble ? bubble.permissions[action] === 'public' : false;
       }
 
-      console.log(`[VerificationService] Getting bubble for access check...`);
       const bubble = await this.getBubbleById(bubbleId);
       if (!bubble) {
-        console.log(`[VerificationService] Bubble ${bubbleId} not found`);
         return false;
       }
 
       const permission = bubble.permissions[action];
-      console.log(`[VerificationService] Required permission level: ${permission}`);
       
-      // Public access
       if (permission === 'public') {
-        console.log(`[VerificationService] Public access granted`);
         return true;
       }
       
-      // Admin access
       if (permission === 'admins' && bubble.createdBy === walletAddress) {
-        console.log(`[VerificationService] Admin access granted`);
         return true;
       }
       
-      // Verified access
       if (permission === 'verified') {
-        console.log(`[VerificationService] Checking if user ${walletAddress} is verified for bubble ${bubbleId}`);
-        const isVerified = await this.isUserVerified(bubbleId, walletAddress);
-        console.log(`[VerificationService] User verification status: ${isVerified}`);
-        return isVerified;
+        return await this.isUserVerified(bubbleId, walletAddress);
       }
 
-      console.log(`[VerificationService] No access granted`);
       return false;
     } catch (error) {
-      console.error('[VerificationService] Error checking access:', error);
+      console.error('Error checking access:', error);
       return false;
     }
   }
@@ -409,16 +361,13 @@ export class VerificationService {
    */
   isReclaimAvailable(): boolean {    
     if (!this.reclaimVerification) {
-      console.log('[VerificationService] ReclaimVerification client not initialized');
       return false;
     }
     
     if (!this.account?.bech32Address) {
-      console.log('[VerificationService] No wallet account available');
       return false;
     }
     
-    console.log('[VerificationService] Reclaim verification is available');
     return true;
   }
 
@@ -460,16 +409,12 @@ export class VerificationService {
   }
 }
 
-/**
- * Factory function to create a VerificationService instance
- */
 export function createVerificationService(dependencies: VerificationServiceDependencies): VerificationService {
   return new VerificationService(dependencies);
 }
 
-// Platform-aware factory function that creates the appropriate verification service
-export function createPlatformVerificationService(dependencies: VerificationServiceDependencies) {
-  return createVerificationService(dependencies);
+export function createPlatformVerificationService(dependencies: VerificationServiceDependencies): VerificationService {
+  return new VerificationService(dependencies);
 }
 
 // Export all types for consistency

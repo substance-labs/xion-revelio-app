@@ -6,7 +6,6 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAbstraxionAccount, useAbstraxionClient } from "@/lib/abstraxion";
 import { BubbleMetadata } from '@/types/bubble';
-import { VerificationComponent } from '@/components/bubbles/VerificationComponent';
 import { useVerification } from '@/hooks/useVerification';
 
 if (!process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS) {
@@ -90,16 +89,11 @@ export default function BubbleDetail() {
     setBubbleLoading(true);
     
     if (!queryClient) {
-      console.log('No queryClient available');
       setBubbleLoading(false);
       return;
     }
     
     try {
-      console.log('Loading bubble metadata for:', bubbleId);
-      console.log('Collection name:', collectionName);
-      console.log('Contract address:', contractAddress);
-      
       const response = await queryClient.queryContractSmart(contractAddress, {
         Get: {
           collection: collectionName,
@@ -107,19 +101,12 @@ export default function BubbleDetail() {
         }
       });
 
-      console.log('Raw response:', response);
-
       if (response?.document?.data) {
         const bubbleData = JSON.parse(response.document.data);
         setBubble(bubbleData);
-        console.log('Loaded bubble:', bubbleData);
       } else if (response?.data) {
-        // Fallback for different response format
         const bubbleData = JSON.parse(response.data);
         setBubble(bubbleData);
-        console.log('Loaded bubble (fallback):', bubbleData);
-      } else {
-        console.log('No bubble data found for ID:', bubbleId);
       }
     } catch (error) {
       console.error('Error loading bubble:', error);
@@ -132,11 +119,7 @@ export default function BubbleDetail() {
   const loadPosts = async () => {
     setLoading(true);
     try {
-      // Fetch posts from DocuStore contract
-      console.log('Loading posts for bubble:', bubbleId);
-      
       // TODO: Implement actual post fetching from DocuStore
-      // For now, start with empty posts array
       setPosts([]);
     } catch (error) {
       console.error('Error loading posts:', error);
@@ -161,18 +144,13 @@ export default function BubbleDetail() {
       }
 
       try {
-        console.log('Checking access for bubble:', bubble.id, 'account:', account?.bech32Address || 'unauthenticated');
-        
         const readAccess = await checkAccess(bubble.id, 'read');
         const writeAccess = await checkAccess(bubble.id, 'write');
-        
-        console.log('Access check results - read:', readAccess, 'write:', writeAccess);
         
         setHasReadAccess(readAccess);
         setHasWriteAccess(writeAccess);
       } catch (error) {
         console.error('Error checking permissions:', error);
-        // Fallback to basic permission check
         setHasReadAccess(bubble.permissions.read === 'public');
         setHasWriteAccess(false);
       }
@@ -186,7 +164,6 @@ export default function BubbleDetail() {
   const handleCreatePost = async () => {
     if (!account || !newPostText.trim()) return;
     
-    console.log('Creating post:', newPostText);
     Alert.alert('Info', 'Post creation will be implemented soon');
     setNewPostText('');
   };
@@ -194,7 +171,6 @@ export default function BubbleDetail() {
   const handleAddComment = async (postId: string) => {
     if (!account || !newCommentText[postId]?.trim()) return;
     
-    console.log('Adding comment to post:', postId);
     Alert.alert('Info', 'Comments will be implemented soon');
     setNewCommentText(prev => ({ ...prev, [postId]: '' }));
   };
