@@ -6,6 +6,8 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAbstraxionAccount, useAbstraxionClient } from "@/lib/abstraxion";
 import { BubbleMetadata } from '@/types/bubble';
+import { VerificationComponent } from '@/components/bubbles/VerificationComponent';
+import { useVerification } from '@/hooks/useVerification';
 
 if (!process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS) {
   throw new Error("EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS is not set in your environment file");
@@ -43,16 +45,42 @@ export default function BubbleDetail() {
   const { data: account, isConnected } = useAbstraxionAccount();
   const { client: queryClient } = useAbstraxionClient();
 
+  // Verification hook
+  const { 
+    checkAccess, 
+    checkUserVerification, 
+    startVerification, 
+    isLoading,
+    isReclaimAvailable,
+    getVerificationStatusMessage 
+  } = useVerification();
+
   // State
   const [bubble, setBubble] = useState<BubbleMetadata | null>(null);
   const [bubbleLoading, setBubbleLoading] = useState(true);
   const [posts, setPosts] = useState<BubblePost[]>([]);
   const [comments, setComments] = useState<{ [postId: string]: BubbleComment[] }>({});
   const [newPostText, setNewPostText] = useState('');
+  const [hasReadAccess, setHasReadAccess] = useState(false);
+  const [hasWriteAccess, setHasWriteAccess] = useState(false);
   const [newCommentText, setNewCommentText] = useState<{ [postId: string]: string }>({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  // Check if user is verified for this bubble
+  useEffect(() => {
+    const checkVerified = async () => {
+      if (bubble && account?.bech32Address) {
+        const verified = await checkUserVerification(bubble.id);
+        setIsVerified(verified);
+      } else {
+        setIsVerified(false);
+      }
+    };
+    checkVerified();
+  }, [bubble, account, checkUserVerification]);
 
   const contractAddress = process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS as string;
   const collectionName = process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
@@ -123,6 +151,38 @@ export default function BubbleDetail() {
     loadPosts();
   }, [bubbleId, queryClient]);
 
+  // Check access permissions when bubble data or account changes
+  useEffect(() => {
+    const checkPermissions = async () => {
+      if (!bubble) {
+        setHasReadAccess(false);
+        setHasWriteAccess(false);
+        return;
+      }
+
+      try {
+        console.log('Checking access for bubble:', bubble.id, 'account:', account?.bech32Address || 'unauthenticated');
+        
+        const readAccess = await checkAccess(bubble.id, 'read');
+        const writeAccess = await checkAccess(bubble.id, 'write');
+        
+        console.log('Access check results - read:', readAccess, 'write:', writeAccess);
+        
+        setHasReadAccess(readAccess);
+        setHasWriteAccess(writeAccess);
+      } catch (error) {
+        console.error('Error checking permissions:', error);
+        // Fallback to basic permission check
+        setHasReadAccess(bubble.permissions.read === 'public');
+        setHasWriteAccess(false);
+      }
+    };
+
+    if (bubble) {
+      checkPermissions();
+    }
+  }, [bubble, account, checkAccess]);
+
   const handleCreatePost = async () => {
     if (!account || !newPostText.trim()) return;
     
@@ -146,7 +206,7 @@ export default function BubbleDetail() {
   };
 
   // Check if user can read this bubble
-  const canRead = bubble?.permissions.read === 'public' || isConnected;
+  const canRead = hasReadAccess;
   
   // Show loading state while bubble metadata is loading
   if (bubbleLoading) {
@@ -170,24 +230,79 @@ export default function BubbleDetail() {
     );
   }
 
-  // If bubble requires connection and user is not connected
-  if (!canRead) {
+  // If user doesn't have read access
+  if (!canRead && bubble) {
+    const needsVerification = (bubble.permissions.read === 'verified' || bubble.permissions.write === 'verified');
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol name="chevron.left" size={24} color={tintColor} />
-          </TouchableOpacity>
-          <ThemedText type="title" style={styles.bubbleName}>
-            {bubble?.name || name || bubbleId}
-          </ThemedText>
-        </View>
-        
-        <View style={styles.connectPrompt}>
-          <ThemedText style={styles.connectText}>
-            {/* Connect your wallet to view this private bubble */}
-          </ThemedText>
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]}> 
+        <View style={styles.header}> 
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}> 
+            <IconSymbol name="chevron.left" size={24} color={tintColor} /> 
+          </TouchableOpacity> 
+          <ThemedText type="title" style={styles.bubbleName}> 
+            {bubble?.name || name || bubbleId} 
+          </ThemedText> 
+        </View> 
+        <ScrollView style={styles.content}> 
+          <View style={styles.accessDeniedContainer}> 
+            <ThemedText style={styles.accessDeniedText}> 
+              {needsVerification && !isConnected
+                ? 'Connect your wallet to access this bubble'
+                : needsVerification
+                  ? 'This bubble requires verification to access'
+                  : 'You do not have access to this bubble'
+              }
+            </ThemedText>
+            {/* Show Get Verified button if user is connected, not verified, and verification is required for read or write */}
+            {isConnected && needsVerification && !isVerified && (
+              <View>
+                <TouchableOpacity
+                  style={{
+                    marginTop: 16,
+                    backgroundColor: isReclaimAvailable() ? tintColor : borderColor,
+                    padding: 12,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    opacity: verifying ? 0.6 : 1
+                  }}
+                  onPress={async () => {
+                    if (!isReclaimAvailable()) {
+                      Alert.alert('Verification Unavailable', getVerificationStatusMessage());
+                      return;
+                    }
+                    setVerifying(true);
+                    const result = await startVerification({
+                      bubbleId: bubble.id,
+                      walletAddress: account?.bech32Address || '',
+                      provider: 'twitter' // or select provider dynamically
+                    });
+                    setVerifying(false);
+                    if (result.success) {
+                      loadBubble();
+                    } else {
+                      Alert.alert('Verification Failed', result.error || 'Unknown error');
+                    }
+                  }}
+                  disabled={verifying || !isReclaimAvailable()}
+                >
+                  <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>
+                    {verifying ? 'Verifying...' : isReclaimAvailable() ? 'Get Verified' : 'Verification Unavailable'}
+                  </ThemedText>
+                </TouchableOpacity>
+                {!isReclaimAvailable() && (
+                  <ThemedText style={{ 
+                    marginTop: 8, 
+                    fontSize: 12, 
+                    textAlign: 'center', 
+                    opacity: 0.6 
+                  }}>
+                    {getVerificationStatusMessage()}
+                  </ThemedText>
+                )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -245,6 +360,72 @@ export default function BubbleDetail() {
               <ThemedText style={styles.connectToPostText}>
                 Connect your wallet to join the conversation
               </ThemedText>
+            </View>
+          ) : !hasWriteAccess ? (
+            <View style={styles.connectToPostPrompt}>
+              <ThemedText style={styles.connectToPostText}>
+                {bubble?.permissions?.write === 'verified' 
+                  ? 'Verification required to post in this bubble'
+                  : 'You don\'t have permission to post in this bubble'
+                }
+              </ThemedText>
+              {/* Show Get Verified button if write requires verification and user is not verified */}
+              {bubble?.permissions?.write === 'verified' && !isVerified && (
+                <View>
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 12,
+                      backgroundColor: isReclaimAvailable() ? tintColor : borderColor,
+                      padding: 12,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      opacity: verifying ? 0.6 : 1
+                    }}
+                    onPress={async () => {
+                      if (!isReclaimAvailable()) {
+                        Alert.alert('Verification Unavailable', getVerificationStatusMessage());
+                        return;
+                      }
+                      setVerifying(true);
+                      const result = await startVerification({
+                        bubbleId: bubble.id,
+                        walletAddress: account?.bech32Address || '',
+                        provider: 'twitter' // or select provider dynamically
+                      });
+                      setVerifying(false);
+                      if (result.success) {
+                        // Refresh permissions after verification
+                        const checkPermissions = async () => {
+                          if (bubble) {
+                            const readAccess = await checkAccess(bubble.id, 'read');
+                            const writeAccess = await checkAccess(bubble.id, 'write');
+                            setHasReadAccess(readAccess);
+                            setHasWriteAccess(writeAccess);
+                          }
+                        };
+                        checkPermissions();
+                      } else {
+                        Alert.alert('Verification Failed', result.error || 'Unknown error');
+                      }
+                    }}
+                    disabled={verifying || !isReclaimAvailable()}
+                  >
+                    <ThemedText style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
+                      {verifying ? 'Verifying...' : isReclaimAvailable() ? 'Get Verified to Post' : 'Verification Unavailable'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                  {!isReclaimAvailable() && (
+                    <ThemedText style={{ 
+                      marginTop: 8, 
+                      fontSize: 12, 
+                      textAlign: 'center', 
+                      opacity: 0.6 
+                    }}>
+                      {getVerificationStatusMessage()}
+                    </ThemedText>
+                  )}
+                </View>
+              )}
             </View>
           ) : (
             <>
@@ -380,5 +561,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.7,
     fontSize: 14,
+  },
+  accessDeniedContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  accessDeniedText: {
+    textAlign: 'center',
+    fontSize: 16,
+    marginBottom: 20,
+    opacity: 0.7,
   },
 });

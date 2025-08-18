@@ -17,7 +17,21 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.abstraxionexpodemo"
+      "package": "com.anonymous.abstraxionexpodemo",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "reclaim"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -26,6 +40,7 @@
     },
     "plugins": [
       "expo-router",
+      "@reclaimprotocol/inapp-rn-sdk",
       [
         "expo-splash-screen",
         {

@@ -33,8 +33,8 @@ export class BubbleService {
       typeof data.createdAt === 'string' &&
       typeof data.createdBy === 'string' &&
       data.permissions &&
-      data.permissions.read === 'public' &&
-      (data.permissions.write === 'public' || data.permissions.write === 'admins')
+      (data.permissions.read === 'public' || data.permissions.read === 'verified') &&
+      (data.permissions.write === 'public' || data.permissions.write === 'admins' || data.permissions.write === 'verified')
     );
   }
 
@@ -172,6 +172,8 @@ export class BubbleService {
         createdAt: new Date().toISOString(),
         createdBy: this.account.bech32Address,
         permissions: formData.permissions,
+        verification: formData.verification,
+        verifications: [], // Initialize empty verifications array
         memberCount: 1
       };
 
