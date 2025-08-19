@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { ReclaimVerification } from '@reclaimprotocol/inapp-rn-sdk';
-import { BubbleVerification, ReclaimProof, VerificationResult, VerificationRequest } from '@/types/bubble';
+import { BubbleVerification, ReclaimProof, VerificationResult, VerificationRequest, VerificationProvider } from '@/types/bubble';
 
 export interface VerificationServiceDependencies {
   client: any; // Query client for reads
@@ -87,6 +87,22 @@ export class VerificationService {
     }
 
     try {
+      // Get the provider ID - request.provider should contain the provider ID
+      // but we'll add a fallback to find by name if needed
+      let providerId = request.provider;
+      
+      // If provider looks like a name instead of ID, find the corresponding ID
+      if (providerId && !providerId.includes('-')) {
+        const availableProviders = this.getAvailableProviders();
+        const providerObj = availableProviders.find(p => p.name === providerId);
+        if (providerObj) {
+          providerId = providerObj.id;
+        }
+      }
+
+      if (!providerId) {
+        return { success: false, error: 'Invalid provider specified' };
+      }
       
       // Start verification process according to official documentation
       let verificationResult;
@@ -94,7 +110,7 @@ export class VerificationService {
         verificationResult = await this.reclaimVerification.startVerification({
           appId: process.env.EXPO_PUBLIC_RECLAIM_APP_ID ?? '',
           secret: process.env.EXPO_PUBLIC_RECLAIM_APP_SECRET ?? '',
-          providerId: process.env.EXPO_PUBLIC_RECLAIM_PROVIDER_ID ?? '',
+          providerId: providerId,
         });
       } catch (reclaimError: any) {
         if (reclaimError.constructor.name === 'ReclaimVerificationException') {
@@ -368,14 +384,24 @@ export class VerificationService {
       return false;
     }
     
+    if (!this.client || !this.signingClient) {
+      return false;
+    }
+    
     return true;
   }
 
   /**
    * Get available verification providers
    */
-  getAvailableProviders(): string[] {
-    return ['twitter', 'github', 'google'];
+  getAvailableProviders(): VerificationProvider[] {
+    return [
+      { name: 'github', id: '6d3f6753-7ee6-49ee-a545-62f1b1822ae5' },
+      { name: 'gmail', id: 'f9f383fd-32d9-4c54-942f-5e9fda349762' },
+      { name: 'strava', id: 'e7af7066-3dcb-4976-b6ed-e278a6365d3d' },
+      { name: 'linkedin', id: 'a9f1063c-06b7-476a-8410-9ff6e427e637' },
+      { name: 'twitter', id: 'e6fe962d-8b4e-4ce5-abcc-3d21c88bd64a' }
+    ];
   }
 
   /**

@@ -29,12 +29,17 @@ export class BubbleService {
       typeof data.id === 'string' &&
       typeof data.name === 'string' &&
       typeof data.description === 'string' &&
-      typeof data.domain === 'string' &&
       typeof data.createdAt === 'string' &&
       typeof data.createdBy === 'string' &&
       data.permissions &&
       (data.permissions.read === 'public' || data.permissions.read === 'verified') &&
-      (data.permissions.write === 'public' || data.permissions.write === 'admins' || data.permissions.write === 'verified')
+      (data.permissions.write === 'public' || data.permissions.write === 'admins' || data.permissions.write === 'verified') &&
+      (!data.verification || (
+        Array.isArray(data.verification.providers) &&
+        data.verification.providers.every((p: any) => 
+          p && typeof p.name === 'string' && typeof p.id === 'string'
+        )
+      ))
     );
   }
 
@@ -141,13 +146,16 @@ export class BubbleService {
         id: `bubble_${Date.now()}`,
         name: formData.name,
         description: formData.description,
-        domain: formData.domain,
         createdAt: new Date().toISOString(),
         createdBy: this.account.bech32Address,
         permissions: formData.permissions,
-        verification: formData.verification,
+        verification: formData.verification?.provider ? {
+          required: true,
+          providers: [formData.verification.provider] // Convert single provider to array
+        } : undefined,
         verifications: [],
-        memberCount: 1
+        memberCount: 1,
+        postCount: 0 // Initialize with 0 posts
       };
 
       await this.client.execute(

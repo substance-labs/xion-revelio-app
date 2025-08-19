@@ -1,4 +1,4 @@
-import { BubbleVerification, VerificationResult, VerificationRequest } from '@/types/bubble';
+import { BubbleVerification, VerificationResult, VerificationRequest, VerificationProvider } from '@/types/bubble';
 
 export interface VerificationServiceDependencies {
   client: any;
@@ -45,8 +45,14 @@ export class VerificationService {
     return true; // This should be handled by the bubble permissions
   }
 
-  getAvailableProviders(): string[] {
-    return [];
+  getAvailableProviders(): VerificationProvider[] {
+    return [
+      { name: 'github', id: '6d3f6753-7ee6-49ee-a545-62f1b1822ae5' },
+      { name: 'gmail', id: 'f9f383fd-32d9-4c54-942f-5e9fda349762' },
+      { name: 'strava', id: 'e7af7066-3dcb-4976-b6ed-e278a6365d3d' },
+      { name: 'linkedin', id: 'a9f1063c-06b7-476a-8410-9ff6e427e637' },
+      { name: 'twitter', id: 'e6fe962d-8b4e-4ce5-abcc-3d21c88bd64a' }
+    ];
   }
 
   isVerificationSupported(): boolean {

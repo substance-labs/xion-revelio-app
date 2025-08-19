@@ -36,7 +36,6 @@ The verification system allows bubbles to require users to prove their identity 
 const bubbleData: CreateBubbleFormData = {
   name: "Verified Community",
   description: "A community for verified users",
-  domain: "company.com",
   permissions: {
     read: 'verified',  // Only verified users can read
     write: 'verified' // Only verified users can write

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Switch } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Image } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -10,10 +10,9 @@ interface CreateBubbleWizardProps {
   visible: boolean;
   onClose: () => void;
   onCreate: (formData: CreateBubbleFormData) => Promise<boolean>;
-  loading: boolean;
 }
 
-export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: CreateBubbleWizardProps) {
+export function CreateBubbleWizard({ visible, onClose, onCreate }: CreateBubbleWizardProps) {
   const backgroundColor = useThemeColor({}, 'background');
   const cardColor = useThemeColor({}, 'card');
   const borderColor = useThemeColor({}, 'border');
@@ -23,17 +22,53 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
 
   const { getAvailableProviders, isVerificationSupported } = useVerification();
 
+  const [loading, setLoading] = useState(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+
+  // Helper function to get provider description
+  const getProviderDescription = (providerName: string): string => {
+    switch (providerName.toLowerCase()) {
+      case 'github':
+        return 'Verify with GitHub developer account';
+      case 'gmail':
+        return 'Verify with Google Gmail account';
+      case 'strava':
+        return 'Verify with Strava fitness account';
+      case 'linkedin':
+        return 'Verify with LinkedIn professional account';
+      case 'twitter':
+        return 'Verify with Twitter/X social account';
+      default:
+        return `Verify with ${providerName} account`;
+    }
+  };
+
+  // Helper function to get provider icon color
+  const getProviderColor = (providerName: string): string => {
+    switch (providerName.toLowerCase()) {
+      case 'github':
+        return '#24292e';
+      case 'gmail':
+        return '#ea4335';
+      case 'strava':
+        return '#fc4c02';
+      case 'linkedin':
+        return '#0a66c2';
+      case 'twitter':
+        return '#1da1f2';
+      default:
+        return tintColor;
+    }
+  };
   const [formData, setFormData] = useState<CreateBubbleFormData>({
     name: '',
     description: '',
-    domain: '',
     permissions: {
       read: 'public',
       write: 'public'
     },
     verification: {
-      required: false,
-      providers: []
+      provider: undefined
     }
   });
 
@@ -41,14 +76,12 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
     setFormData({
       name: '',
       description: '',
-      domain: '',
       permissions: {
         read: 'public',
         write: 'public'
       },
       verification: {
-        required: false,
-        providers: []
+        provider: undefined
       }
     });
   };
@@ -59,10 +92,15 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
   };
 
   const handleCreate = async () => {
-    const success = await onCreate(formData);
-    if (success) {
-      resetForm();
-      onClose();
+    setLoading(true);
+    try {
+      const success = await onCreate(formData);
+      if (success) {
+        resetForm();
+        onClose();
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,7 +124,12 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
           <View style={styles.modalCloseButton} />
         </View>
 
-        <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentContainer}>
+        <ScrollView 
+          style={styles.modalContent} 
+          contentContainerStyle={styles.modalContentContainer}
+          onScroll={() => dropdownVisible && setDropdownVisible(false)}
+          scrollEventThrottle={16}
+        >
           {/* Basic Information */}
           <View style={styles.formSection}>
             <ThemedText type="subtitle" style={styles.sectionTitle}>
@@ -103,26 +146,182 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
                 }]}
                 value={formData.name}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
-                placeholder="e.g., @company.com"
+                placeholder="A title for this bubble..."
                 placeholderTextColor={tabIconDefault}
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Domain *</ThemedText>
-              <TextInput
-                style={[styles.textInput, { 
-                  backgroundColor: cardColor, 
-                  borderColor: borderColor,
-                  color: textColor
-                }]}
-                value={formData.domain}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, domain: text }))}
-                placeholder="company.com"
-                placeholderTextColor={tabIconDefault}
-                autoCapitalize="none"
-              />
-            </View>
+            {/* Verification Provider Combobox */}
+            {isVerificationSupported() && (
+              <View style={styles.inputGroup}>
+                <ThemedText style={styles.inputLabel}>Verification Provider</ThemedText>
+                <View style={styles.comboboxContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.combobox,
+                      dropdownVisible && styles.comboboxOpen,
+                      { 
+                        backgroundColor: cardColor, 
+                        borderColor: dropdownVisible ? tintColor : borderColor 
+                      }
+                    ]}
+                    onPress={() => setDropdownVisible(!dropdownVisible)}
+                  >
+                    <View style={styles.comboboxContent}>
+                      <View style={styles.comboboxTextContainer}>
+                        {formData.verification?.provider ? (
+                          <>
+                            <View style={[styles.providerIcon, { backgroundColor: getProviderColor(formData.verification.provider.name) }]}>
+                              <ThemedText style={styles.providerIconText}>
+                                {formData.verification.provider.name.charAt(0).toUpperCase()}
+                              </ThemedText>
+                            </View>
+                            <ThemedText 
+                              style={[styles.comboboxText, { color: textColor }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {formData.verification.provider.name.charAt(0).toUpperCase() + formData.verification.provider.name.slice(1)}
+                            </ThemedText>
+                          </>
+                        ) : (
+                          <>
+                            <View style={[styles.providerIcon, styles.providerIconEmpty, { borderColor: borderColor }]}>
+                              <IconSymbol name="shield" size={12} color={tabIconDefault} />
+                            </View>
+                            <ThemedText 
+                              style={[styles.comboboxPlaceholder, { color: tabIconDefault }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              Select verification provider (optional)
+                            </ThemedText>
+                          </>
+                        )}
+                      </View>
+                      <IconSymbol 
+                        name={dropdownVisible ? "chevron.up" : "chevron.down"} 
+                        size={16} 
+                        color={dropdownVisible ? tintColor : tabIconDefault} 
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Dropdown Options */}
+                  {dropdownVisible && (
+                    <View style={[
+                      styles.comboboxDropdown, 
+                      { 
+                        backgroundColor: cardColor, 
+                        borderColor: borderColor,
+                        shadowColor: textColor
+                      }
+                    ]}>
+                      <TouchableOpacity
+                        style={[
+                          styles.comboboxOption,
+                          getAvailableProviders().length === 0 && styles.comboboxOptionLast, // If no providers, this is the last item
+                          !formData.verification?.provider && styles.comboboxOptionSelected,
+                          !formData.verification?.provider && { backgroundColor: `${tintColor}15` }
+                        ]}
+                        onPress={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            verification: {
+                              ...prev.verification,
+                              provider: undefined
+                            }
+                          }));
+                          setDropdownVisible(false);
+                        }}
+                      >
+                        <View style={styles.comboboxOptionContent}>
+                          <View style={[styles.providerIcon, styles.providerIconEmpty, { borderColor: borderColor }]}>
+                            <IconSymbol name="slash.circle" size={12} color={tabIconDefault} />
+                          </View>
+                          <View style={styles.comboboxOptionTextContainer}>
+                            <ThemedText 
+                              style={[
+                                styles.comboboxOptionText,
+                                { color: textColor },
+                                !formData.verification?.provider && { color: tintColor, fontWeight: '600' }
+                              ]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              No verification required
+                            </ThemedText>
+                            <ThemedText 
+                              style={[styles.comboboxOptionSubtext, { color: tabIconDefault }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              Public bubble accessible to everyone
+                            </ThemedText>
+                          </View>
+                          {!formData.verification?.provider && (
+                            <IconSymbol name="checkmark" size={16} color={tintColor} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+
+                      {getAvailableProviders().map((provider, index, array) => (
+                        <TouchableOpacity
+                          key={provider.id}
+                          style={[
+                            styles.comboboxOption,
+                            index === array.length - 1 && styles.comboboxOptionLast, // Remove border from last item
+                            formData.verification?.provider?.id === provider.id && styles.comboboxOptionSelected,
+                            formData.verification?.provider?.id === provider.id && { backgroundColor: `${tintColor}15` }
+                          ]}
+                          onPress={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              verification: {
+                                ...prev.verification,
+                                provider: provider
+                              }
+                            }));
+                            setDropdownVisible(false);
+                          }}
+                        >
+                          <View style={styles.comboboxOptionContent}>
+                            <View style={[styles.providerIcon, { backgroundColor: getProviderColor(provider.name) }]}>
+                              <ThemedText style={styles.providerIconText}>
+                                {provider.name.charAt(0).toUpperCase()}
+                              </ThemedText>
+                            </View>
+                            <View style={styles.comboboxOptionTextContainer}>
+                              <ThemedText 
+                                style={[
+                                  styles.comboboxOptionText,
+                                  { color: textColor },
+                                  formData.verification?.provider?.id === provider.id && { color: tintColor, fontWeight: '600' }
+                                ]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}
+                              </ThemedText>
+                              <ThemedText 
+                                style={[styles.comboboxOptionSubtext, { color: tabIconDefault }]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {getProviderDescription(provider.name)}
+                              </ThemedText>
+                            </View>
+                            {formData.verification?.provider?.id === provider.id && (
+                              <IconSymbol name="checkmark" size={16} color={tintColor} />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
 
             <View style={styles.inputGroup}>
               <ThemedText style={styles.inputLabel}>Description</ThemedText>
@@ -178,7 +377,7 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
             <View style={styles.permissionGroup}>
               <ThemedText style={styles.permissionLabel}>Who can write posts?</ThemedText>
               <View style={styles.permissionOptions}>
-                {(['public', 'admins', 'verified'] as const).map((option) => (
+                {(['public', 'verified'] as const).map((option) => (
                   <TouchableOpacity
                     key={option}
                     style={[
@@ -202,76 +401,6 @@ export function CreateBubbleWizard({ visible, onClose, onCreate, loading }: Crea
               </View>
             </View>
           </View>
-
-          {/* Verification Settings */}
-          {isVerificationSupported() && (
-            <View style={styles.formSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>
-                Verification Settings
-              </ThemedText>
-
-              <View style={styles.switchGroup}>
-                <View style={styles.switchLabelContainer}>
-                  <ThemedText style={styles.switchLabel}>Require Verification</ThemedText>
-                  <ThemedText style={styles.switchDescription}>
-                    Users must verify their identity to access this bubble
-                  </ThemedText>
-                </View>
-                <Switch
-                  value={formData.verification?.required || false}
-                  onValueChange={(value) => setFormData(prev => ({
-                    ...prev,
-                    verification: {
-                      required: value,
-                      providers: value ? getAvailableProviders() : []
-                    }
-                  }))}
-                  trackColor={{ false: '#e0e0e0', true: tintColor }}
-                  thumbColor={'#fff'}
-                />
-              </View>
-
-              {formData.verification?.required && (
-                <View style={styles.providersGroup}>
-                  <ThemedText style={styles.permissionLabel}>Available Verification Providers</ThemedText>
-                  <View style={styles.permissionOptions}>
-                    {getAvailableProviders().map((provider) => (
-                      <TouchableOpacity
-                        key={provider}
-                        style={[
-                          styles.permissionOption,
-                          formData.verification?.providers.includes(provider) && { backgroundColor: tintColor },
-                          { borderColor: borderColor }
-                        ]}
-                        onPress={() => setFormData(prev => {
-                          const currentProviders = prev.verification?.providers || [];
-                          const newProviders = currentProviders.includes(provider)
-                            ? currentProviders.filter(p => p !== provider)
-                            : [...currentProviders, provider];
-                          
-                          return {
-                            ...prev,
-                            verification: {
-                              ...prev.verification,
-                              required: prev.verification?.required || false,
-                              providers: newProviders
-                            }
-                          };
-                        })}
-                      >
-                        <ThemedText style={[
-                          styles.permissionOptionText,
-                          formData.verification?.providers.includes(provider) && { color: '#fff' }
-                        ]}>
-                          {provider.charAt(0).toUpperCase() + provider.slice(1)}
-                        </ThemedText>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
 
           {/* Create and Cancel Buttons */}
           <View style={styles.buttonContainer}>
@@ -420,27 +549,154 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.5,
   },
-  switchGroup: {
+  // Legacy dropdown styles (keeping for backwards compatibility)
+  dropdown: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
   },
-  switchLabelContainer: {
+  dropdownText: {
+    fontSize: 16,
     flex: 1,
-    marginRight: 15,
   },
-  switchLabel: {
-    fontSize: 14,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  modalOptionText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  // New Combobox styles
+  comboboxContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  combobox: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 52,
+  },
+  comboboxOpen: {
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    borderBottomWidth: 0,
+  },
+  comboboxContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+  },
+  comboboxTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0, // Important for text truncation
+  },
+  comboboxText: {
+    fontSize: 16,
     fontWeight: '500',
-    marginBottom: 4,
+    marginLeft: 12,
+    flex: 1,
   },
-  switchDescription: {
+  comboboxPlaceholder: {
+    fontSize: 16,
+    marginLeft: 12,
+    flex: 1,
+  },
+  providerIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  providerIconEmpty: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  providerIconText: {
     fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
-  providersGroup: {
-    marginTop: 15,
+  comboboxDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    maxHeight: 420,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1001,
+    paddingBottom: 4, // Add bottom padding to prevent text cutoff
+  },
+  comboboxOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  comboboxOptionLast: {
+    borderBottomWidth: 0, // Remove border from last option
+    paddingBottom: 16, // Extra padding for last option to prevent text cutoff
+  },
+  comboboxOptionSelected: {
+    // Selected styling handled via backgroundColor prop
+  },
+  comboboxOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  comboboxOptionTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+    minWidth: 0, // Important for text truncation
+  },
+  comboboxOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  comboboxOptionSubtext: {
+    fontSize: 13,
+    opacity: 0.7,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  comboboxBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
   },
 });

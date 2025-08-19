@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAbstraxionSigningClient, useAbstraxionAccount, useAbstraxionClient } from '@burnt-labs/abstraxion-react-native';
 import { createPlatformVerificationService } from '@/services/verificationService';
-import { VerificationRequest, VerificationResult, BubbleVerification } from '@/types/bubble';
+import { VerificationRequest, VerificationResult, BubbleVerification, VerificationProvider } from '@/types/bubble';
 
 export function useVerification() {
   const [isLoading, setIsLoading] = useState(false);
@@ -129,7 +129,8 @@ export function useVerification() {
   /**
    * Get available verification providers
    */
-  const getAvailableProviders = useCallback((): string[] => {
+  const getAvailableProviders = useCallback((): VerificationProvider[] => {
+    console.log(verificationService.getAvailableProviders())
     return verificationService.getAvailableProviders();
   }, [verificationService]);
 

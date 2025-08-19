@@ -31,18 +31,14 @@ export default function Bubbles() {
 
   // State for components
   const [showCreateWizard, setShowCreateWizard] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
 
   const handleCreateBubble = async (formData: CreateBubbleFormData): Promise<boolean> => {
-    setIsCreating(true);
     try {
       await createBubble(formData);
       return true;
     } catch (error) {
       console.error('Error creating bubble:', error);
       return false;
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -85,6 +81,8 @@ export default function Bubbles() {
         <BubblesList 
           bubbles={bubbles}
           onBubblePress={enterBubble}
+          isLoading={isLoading}
+          error={error}
         />
       </ScrollView>
 
@@ -92,7 +90,6 @@ export default function Bubbles() {
         visible={showCreateWizard}
         onClose={() => setShowCreateWizard(false)}
         onCreate={handleCreateBubble}
-        loading={isCreating}
       />
     </View>
   );

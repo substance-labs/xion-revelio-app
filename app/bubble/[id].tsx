@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, RefreshControl, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAbstraxionAccount, useAbstraxionClient } from "@/lib/abstraxion";
@@ -56,7 +59,6 @@ export default function BubbleDetail() {
 
   // State
   const [bubble, setBubble] = useState<BubbleMetadata | null>(null);
-  const [bubbleLoading, setBubbleLoading] = useState(true);
   const [posts, setPosts] = useState<BubblePost[]>([]);
   const [comments, setComments] = useState<{ [postId: string]: BubbleComment[] }>({});
   const [newPostText, setNewPostText] = useState('');
@@ -64,36 +66,22 @@ export default function BubbleDetail() {
   const [hasWriteAccess, setHasWriteAccess] = useState(false);
   const [newCommentText, setNewCommentText] = useState<{ [postId: string]: string }>({});
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  // Check if user is verified for this bubble
-  useEffect(() => {
-    const checkVerified = async () => {
-      if (bubble && account?.bech32Address) {
-        const verified = await checkUserVerification(bubble.id);
-        setIsVerified(verified);
-      } else {
-        setIsVerified(false);
-      }
-    };
-    checkVerified();
-  }, [bubble, account, checkUserVerification]);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const contractAddress = process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS as string;
   const collectionName = process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
 
-  // Load bubble metadata
+  // Load bubble metadata and initial data
   const loadBubble = async () => {
-    setBubbleLoading(true);
-    
     if (!queryClient) {
-      setBubbleLoading(false);
+      // If queryClient is not available yet, keep loading state
       return;
     }
     
     try {
+      // Load bubble metadata
       const response = await queryClient.queryContractSmart(contractAddress, {
         Get: {
           collection: collectionName,
@@ -101,65 +89,80 @@ export default function BubbleDetail() {
         }
       });
 
+      let bubbleData = null;
       if (response?.document?.data) {
-        const bubbleData = JSON.parse(response.document.data);
-        setBubble(bubbleData);
+        bubbleData = JSON.parse(response.document.data);
       } else if (response?.data) {
-        const bubbleData = JSON.parse(response.data);
+        bubbleData = JSON.parse(response.data);
+      }
+
+      if (bubbleData) {
         setBubble(bubbleData);
+        
+        // Load posts immediately after bubble data
+        await loadPosts();
+        
+        // Check permissions
+        await checkPermissions(bubbleData);
+        
+        // Check verification status
+        if (account?.bech32Address) {
+          const verified = await checkUserVerification(bubbleData.id);
+          setIsVerified(verified);
+        }
       }
     } catch (error) {
       console.error('Error loading bubble:', error);
     } finally {
-      setBubbleLoading(false);
+      setInitialLoadComplete(true);
+    }
+  };
+
+  // Helper function to check permissions
+  const checkPermissions = async (bubbleData: BubbleMetadata) => {
+    if (!bubbleData) return;
+
+    try {
+      const readAccess = await checkAccess(bubbleData.id, 'read');
+      const writeAccess = await checkAccess(bubbleData.id, 'write');
+      
+      setHasReadAccess(readAccess);
+      setHasWriteAccess(writeAccess);
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      setHasReadAccess(bubbleData.permissions.read === 'public');
+      setHasWriteAccess(false);
     }
   };
 
   // Load bubble posts
-  const loadPosts = async () => {
-    setLoading(true);
+  const loadPosts = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       // TODO: Implement actual post fetching from DocuStore
       setPosts([]);
     } catch (error) {
       console.error('Error loading posts:', error);
-      Alert.alert('Error', 'Failed to load posts');
+      if (showLoading) Alert.alert('Error', 'Failed to load posts');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
+    // Set loading state immediately when component mounts
+    setInitialLoadComplete(false);
+    
+    // Load bubble data
     loadBubble();
-    loadPosts();
-  }, [bubbleId, queryClient]);
+  }, [bubbleId]);
 
-  // Check access permissions when bubble data or account changes
+  // Retry loading when queryClient becomes available
   useEffect(() => {
-    const checkPermissions = async () => {
-      if (!bubble) {
-        setHasReadAccess(false);
-        setHasWriteAccess(false);
-        return;
-      }
-
-      try {
-        const readAccess = await checkAccess(bubble.id, 'read');
-        const writeAccess = await checkAccess(bubble.id, 'write');
-        
-        setHasReadAccess(readAccess);
-        setHasWriteAccess(writeAccess);
-      } catch (error) {
-        console.error('Error checking permissions:', error);
-        setHasReadAccess(bubble.permissions.read === 'public');
-        setHasWriteAccess(false);
-      }
-    };
-
-    if (bubble) {
-      checkPermissions();
+    if (queryClient && !initialLoadComplete) {
+      loadBubble();
     }
-  }, [bubble, account, checkAccess]);
+  }, [queryClient]);
 
   const handleCreatePost = async () => {
     if (!account || !newPostText.trim()) return;
@@ -176,31 +179,33 @@ export default function BubbleDetail() {
   };
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([loadBubble(), loadPosts()]);
-    setRefreshing(false);
+    setInitialLoadComplete(false);
+    await loadBubble();
   };
 
   // Check if user can read this bubble
   const canRead = hasReadAccess;
   
-  // Show loading state while bubble metadata is loading
-  if (bubbleLoading) {
+  // Show loading state while initial data is loading
+  if (!initialLoadComplete) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol name="chevron.left" size={24} color={tintColor} />
           </TouchableOpacity>
-          <ThemedText type="title" style={styles.bubbleName}>
-            {name || bubbleId}
-          </ThemedText>
+          <Skeleton width={120} height={24} style={{ marginLeft: 12 }} />
         </View>
         
-        <View style={styles.connectPrompt}>
-          <ThemedText style={styles.connectText}>
-            Loading bubble...
-          </ThemedText>
+        <View style={styles.loadingContainer}>
+          <LoadingSpinner text="Loading bubble..." />
+          <View style={styles.loadingContent}>
+            <Skeleton width="80%" height={16} style={{ marginBottom: 8 }} />
+            <Skeleton width="60%" height={14} style={{ marginBottom: 20 }} />
+            <Skeleton width="100%" height={100} style={{ marginBottom: 12 }} />
+            <Skeleton width="100%" height={100} style={{ marginBottom: 12 }} />
+            <Skeleton width="90%" height={80} />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -239,30 +244,32 @@ export default function BubbleDetail() {
                     padding: 12,
                     borderRadius: 8,
                     alignItems: 'center',
-                    opacity: verifying ? 0.6 : 1
+                    opacity: isLoading ? 0.6 : 1,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    gap: 8,
                   }}
                   onPress={async () => {
                     if (!isReclaimAvailable()) {
                       Alert.alert('Verification Unavailable', getVerificationStatusMessage());
                       return;
                     }
-                    setVerifying(true);
                     const result = await startVerification({
                       bubbleId: bubble.id,
                       walletAddress: account?.bech32Address || '',
-                      provider: 'twitter' // or select provider dynamically
+                      provider: bubble.verification?.providers?.[0]?.id || '6d3f6753-7ee6-49ee-a545-62f1b1822ae5' // Use first available provider or fallback to GitHub ID
                     });
-                    setVerifying(false);
                     if (result.success) {
                       loadBubble();
                     } else {
                       Alert.alert('Verification Failed', result.error || 'Unknown error');
                     }
                   }}
-                  disabled={verifying || !isReclaimAvailable()}
+                  disabled={isLoading || !isReclaimAvailable()}
                 >
+                  {isLoading && <LoadingSpinner size="small" style={{ padding: 0, margin: 0 }} />}
                   <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>
-                    {verifying ? 'Verifying...' : isReclaimAvailable() ? 'Get Verified' : 'Verification Unavailable'}
+                    {isLoading ? 'Verifying...' : isReclaimAvailable() ? 'Get Verified' : 'Verification Unavailable'}
                   </ThemedText>
                 </TouchableOpacity>
                 {!isReclaimAvailable() && (
@@ -301,10 +308,19 @@ export default function BubbleDetail() {
         <ScrollView
           style={styles.postsContainer}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl refreshing={!initialLoadComplete} onRefresh={onRefresh} />
           }
         >
-          {posts.length === 0 ? (
+          {loading ? (
+            <View style={styles.postsLoading}>
+              <LoadingSpinner size="small" text="Loading posts..." />
+              <View style={styles.postsLoadingSkeleton}>
+                <Skeleton width="100%" height={80} style={{ marginBottom: 12 }} />
+                <Skeleton width="100%" height={80} style={{ marginBottom: 12 }} />
+                <Skeleton width="85%" height={60} />
+              </View>
+            </View>
+          ) : posts.length === 0 ? (
             <View style={styles.emptyState}>
               <ThemedText style={styles.emptyText}>
                 No posts yet. Be the first to share something!
@@ -355,20 +371,21 @@ export default function BubbleDetail() {
                       padding: 12,
                       borderRadius: 8,
                       alignItems: 'center',
-                      opacity: verifying ? 0.6 : 1
+                      opacity: isLoading ? 0.6 : 1,
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      gap: 8,
                     }}
                     onPress={async () => {
                       if (!isReclaimAvailable()) {
                         Alert.alert('Verification Unavailable', getVerificationStatusMessage());
                         return;
                       }
-                      setVerifying(true);
                       const result = await startVerification({
                         bubbleId: bubble.id,
                         walletAddress: account?.bech32Address || '',
-                        provider: 'twitter' // or select provider dynamically
+                        provider: bubble.verification?.providers?.[0]?.id || '6d3f6753-7ee6-49ee-a545-62f1b1822ae5' // Use first available provider or fallback to GitHub ID
                       });
-                      setVerifying(false);
                       if (result.success) {
                         // Refresh permissions after verification
                         const checkPermissions = async () => {
@@ -384,10 +401,11 @@ export default function BubbleDetail() {
                         Alert.alert('Verification Failed', result.error || 'Unknown error');
                       }
                     }}
-                    disabled={verifying || !isReclaimAvailable()}
+                    disabled={isLoading || !isReclaimAvailable()}
                   >
+                    {isLoading && <LoadingSpinner size="small" style={{ padding: 0, margin: 0 }} />}
                     <ThemedText style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
-                      {verifying ? 'Verifying...' : isReclaimAvailable() ? 'Get Verified to Post' : 'Verification Unavailable'}
+                      {isLoading ? 'Verifying...' : isReclaimAvailable() ? 'Get Verified to Post' : 'Verification Unavailable'}
                     </ThemedText>
                   </TouchableOpacity>
                   {!isReclaimAvailable() && (
@@ -547,5 +565,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
     opacity: 0.7,
+  },
+  loadingContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  loadingContent: {
+    marginTop: 20,
+    gap: 12,
+  },
+  postsLoading: {
+    padding: 20,
+  },
+  postsLoadingSkeleton: {
+    marginTop: 16,
+    gap: 12,
   },
 });

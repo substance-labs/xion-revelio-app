@@ -20,6 +20,11 @@ export type ReclaimProof = {
   signedClaim: ReclaimSignedClaim;
 };
 
+export type VerificationProvider = {
+  name: string;
+  id: string;
+};
+
 export type BubbleVerification = {
   walletAddress: string;
   proof: ReclaimProof;
@@ -31,7 +36,6 @@ export type BubbleMetadata = {
   id: string;
   name: string;
   description: string;
-  domain: string;
   createdAt: string;
   createdBy: string;
   permissions: {
@@ -39,24 +43,24 @@ export type BubbleMetadata = {
     write: 'public' | 'admins' | 'verified';
   };
   verification?: {
-    required: boolean;
-    providers: string[]; // Available verification providers for this bubble
+    required?: boolean;
+    providers: VerificationProvider[]; // Available verification providers for this bubble
   };
   verifications?: BubbleVerification[]; // List of verified users
   memberCount?: number;
+  postCount?: number; // Number of posts in the bubble
 };
 
 export type CreateBubbleFormData = {
   name: string;
   description: string;
-  domain: string;
   permissions: {
     read: 'public' | 'verified';
     write: 'public' | 'admins' | 'verified';
   };
   verification?: {
-    required: boolean;
-    providers: string[];
+    required?: boolean;
+    provider?: VerificationProvider; // Single provider selection for creation
   };
 };
 
