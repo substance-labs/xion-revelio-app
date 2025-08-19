@@ -27,7 +27,7 @@ export class VerificationService {
     this.signingClient = signingClient || client; // Use signingClient for transactions, fallback to client
     this.account = account;
     this.contractAddress = contractAddress;
-    this.collectionName = collectionName || process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
+    this.collectionName = process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
     this.initializeReclaimClient();
   }
 
@@ -42,12 +42,29 @@ export class VerificationService {
   /**
    * Check if a user is verified for a specific bubble
    */
+  /**
+   * Check if the verification service is ready to use
+   */
+  isReady(): boolean {
+    return this.client !== null && this.client !== undefined;
+  }
+
   async isUserVerified(bubbleId: string, walletAddress: string): Promise<boolean> {
     try {
       const bubble = await this.getBubbleById(bubbleId);
-      if (!bubble?.verifications) return false;
+      console.log(`[VerificationService] Bubble data for ${bubbleId}:`, JSON.stringify(bubble, null, 2));
+      console.log(`[VerificationService] Checking verification for wallet ${walletAddress}`);
+      
+      if (!bubble?.verifications) {
+        console.log(`[VerificationService] No verifications array found for bubble ${bubbleId}`);
+        return false;
+      }
 
-      return bubble.verifications.some((v: BubbleVerification) => v.walletAddress === walletAddress);
+      console.log(`[VerificationService] Verifications array:`, bubble.verifications);
+      const isVerified = bubble.verifications.some((v: BubbleVerification) => v.walletAddress === walletAddress);
+      console.log(`[VerificationService] User verification result:`, isVerified);
+      
+      return isVerified;
     } catch (error) {
       console.error('Error checking user verification:', error);
       return false;
@@ -258,6 +275,8 @@ export class VerificationService {
           document: bubbleId
         }
       });
+
+      console.log(`[VerificationService] Get response for ${bubbleId}:`, response);
 
       if (!response?.document?.data) {
         if (!response?.data) {

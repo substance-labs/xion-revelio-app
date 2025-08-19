@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { IconSymbol } from '@/components/ui/IconSymbol';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { BubbleMetadata } from '@/types/bubble';
 import { useVerification } from '@/hooks/useVerification';
+import { useAbstraxionAccount } from '@/lib/abstraxion';
 
 interface BubbleCardProps {
   bubble: BubbleMetadata;
@@ -21,10 +23,12 @@ export function BubbleCard({
   const textColor = useThemeColor({}, 'text');
   const tabIconDefault = useThemeColor({}, 'tabIconDefault');
 
-  const { checkUserVerification, isVerificationSupported } = useVerification();
+  const { checkUserVerification, isVerificationSupported, startVerification, isReclaimAvailable, getVerificationStatusMessage } = useVerification();
+  const { data: account, isConnected } = useAbstraxionAccount();
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [checkingVerification, setCheckingVerification] = useState(false);
-  const hasCheckedRef = useRef(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const hasCheckedRef = useRef<string | null>(null);
 
     // Helper function to get category icon based on bubble name/description
   const getCategoryIcon = () => {
@@ -32,66 +36,84 @@ export function BubbleCard({
     const description = bubble.description?.toLowerCase() || '';
     
     if (name.includes('tech') || name.includes('dev') || description.includes('development')) {
-      return 'laptopcomputer';
+      return 'computer';
     }
     if (name.includes('music') || description.includes('music')) {
-      return 'music.note';
+      return 'music-note';
     }
     if (name.includes('sport') || name.includes('fitness') || description.includes('sport')) {
-      return 'figure.run';
+      return 'directions-run';
     }
     if (name.includes('food') || description.includes('food') || description.includes('cooking')) {
-      return 'fork.knife';
+      return 'restaurant';
     }
     if (name.includes('travel') || description.includes('travel')) {
-      return 'airplane';
+      return 'flight';
     }
     if (name.includes('art') || description.includes('art') || description.includes('creative')) {
-      return 'paintbrush';
+      return 'brush';
     }
     if (name.includes('finance') || name.includes('crypto') || description.includes('finance')) {
-      return 'dollarsign.circle';
+      return 'attach-money';
     }
     if (name.includes('health') || description.includes('health')) {
-      return 'heart';
+      return 'favorite';
     }
     if (name.includes('education') || description.includes('learn')) {
-      return 'book';
+      return 'school';
     }
     if (name.includes('game') || description.includes('game')) {
-      return 'gamecontroller';
+      return 'sports-esports';
     }
     // Default icon
-    return 'circle.badge.questionmark';
+    return 'help-outline';
   };
 
   // Helper function to get trending icon based on post count
   const getTrendingStatus = () => {
     const postCount = bubble.postCount || 0;
-    if (postCount > 100) return { icon: 'flame' as const, color: '#FF4500' };
-    if (postCount > 50) return { icon: 'arrow.up.circle' as const, color: '#FF9800' };
-    if (postCount > 10) return { icon: 'circle.dotted' as const, color: '#4CAF50' };
+    if (postCount > 100) return { icon: 'local-fire-department' as const, color: '#FF4500' };
+    if (postCount > 50) return { icon: 'trending-up' as const, color: '#FF9800' };
+    if (postCount > 10) return { icon: 'fiber-new' as const, color: '#4CAF50' };
     return null;
   };
   useEffect(() => {
     const checkVerification = async () => {
-      // Only check once and only if verification is required
-      if (hasCheckedRef.current || 
-          !bubble.verification?.providers || 
-          bubble.verification.providers.length === 0) {
+      // Reset checking state if we need to re-check
+      if (!isConnected || !account?.bech32Address) {
+        setIsUserVerified(false);
+        setCheckingVerification(false);
+        hasCheckedRef.current = null;
+        return;
+      }
+
+      // Only check if verification is required
+      if (!bubble.verification?.providers || bubble.verification.providers.length === 0) {
+        setIsUserVerified(false);
+        setCheckingVerification(false);
         return;
       }
 
       // Check if verification is supported
       if (!isVerificationSupported()) {
+        setIsUserVerified(false);
+        setCheckingVerification(false);
         return;
       }
 
-      hasCheckedRef.current = true;
+      // Prevent duplicate checks for the same bubble/account combination
+      const checkKey = `${bubble.id}-${account.bech32Address}`;
+      if (hasCheckedRef.current === checkKey) {
+        return;
+      }
+
+      hasCheckedRef.current = checkKey;
       setCheckingVerification(true);
       
       try {
+        console.log(`Checking verification for bubble ${bubble.id} and user ${account.bech32Address}`);
         const verified = await checkUserVerification(bubble.id);
+        console.log(`Verification result for bubble ${bubble.id}:`, verified);
         setIsUserVerified(verified);
       } catch (error) {
         console.error('Error checking verification:', error);
@@ -101,10 +123,10 @@ export function BubbleCard({
       }
     };
 
-    // Add a small delay to ensure clients are available
+    // Check for proof
     const timeoutId = setTimeout(checkVerification, 100);
     return () => clearTimeout(timeoutId);
-  }, [bubble.id]); // Only depend on bubble.id
+  }, [bubble.id, isConnected, account?.bech32Address, checkUserVerification, isVerificationSupported]); // Re-run when connection status or account changes
 
   // Helper function to get verification requirement info
   const getVerificationInfo = () => {
@@ -159,6 +181,42 @@ export function BubbleCard({
 
   const verificationInfo = getVerificationInfo();
 
+  // Handle verification button press
+  const handleVerifyPress = async (e: any) => {
+    e.stopPropagation(); // Prevent bubble card press
+    
+    if (!isConnected) {
+      Alert.alert('Not Connected', 'Please connect your wallet first');
+      return;
+    }
+
+    if (!isReclaimAvailable()) {
+      Alert.alert('Verification Unavailable', getVerificationStatusMessage());
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const result = await startVerification({
+        bubbleId: bubble.id,
+        walletAddress: account?.bech32Address || '',
+        provider: bubble.verification?.providers?.[0]?.id || '6d3f6753-7ee6-49ee-a545-62f1b1822ae5'
+      });
+      
+      if (result.success) {
+        setIsUserVerified(true);
+        Alert.alert('Success', 'Verification completed successfully!');
+      } else {
+        Alert.alert('Verification Failed', result.error || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      Alert.alert('Error', 'Failed to complete verification');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[
@@ -175,7 +233,7 @@ export function BubbleCard({
           <View style={styles.bubbleTitleRow}>
             {/* Category Icon */}
             <View style={styles.categoryIconContainer}>
-              <IconSymbol 
+              <MaterialIcons 
                 name={getCategoryIcon()} 
                 size={20} 
                 color={tintColor}
@@ -191,7 +249,7 @@ export function BubbleCard({
             {/* Trending Status */}
             {getTrendingStatus() && (
               <View style={styles.trendingContainer}>
-                <IconSymbol 
+                <MaterialIcons 
                   name={getTrendingStatus()!.icon} 
                   size={16} 
                   color={getTrendingStatus()!.color}
@@ -199,28 +257,35 @@ export function BubbleCard({
               </View>
             )}
             
-            {/* Verification Status Badges */}
+            {/* Verification Status */}
             <View style={styles.badgeContainer}>
               {verificationInfo.hasVerificationRequired && (
-                <View style={styles.verificationBadgeContainer}>
-                  {/* Verification Required Badge */}
-                  <View style={[
-                    styles.verificationBadge,
-                    { 
-                      backgroundColor: verificationInfo.isUserVerified ? '#4CAF50' : '#FF9800'
-                    }
-                  ]}>
-                    <IconSymbol 
-                      name={verificationInfo.checkingVerification ? "hourglass" : 
-                            (verificationInfo.isUserVerified ? "checkmark.shield" : "shield")} 
-                      size={12} 
-                      color="#fff" 
-                    />
-                    <ThemedText style={styles.badgeText}>
-                      {verificationInfo.checkingVerification ? 'Checking...' :
-                       (verificationInfo.isUserVerified ? 'Verified' : 'Verification Required')}
-                    </ThemedText>
-                  </View>
+                <View style={styles.verificationIconContainer}>
+                  {verificationInfo.isUserVerified ? (
+                    // Show green verified button when verified
+                    <View style={[styles.verifyButton, { backgroundColor: '#4CAF50' }]}>
+                      <MaterialIcons name="check" size={12} color="#fff" />
+                      <ThemedText style={styles.verifyButtonText}>
+                        Verified
+                      </ThemedText>
+                    </View>
+                  ) : (
+                    // Show verify button when not verified
+                    <TouchableOpacity
+                      style={[styles.verifyButton, { backgroundColor: tintColor }]}
+                      onPress={handleVerifyPress}
+                      disabled={isVerifying || checkingVerification}
+                    >
+                      {isVerifying || checkingVerification ? (
+                        <MaterialIcons name="hourglass-empty" size={12} color="#fff" />
+                      ) : (
+                        <MaterialIcons name="verified-user" size={12} color="#fff" />
+                      )}
+                      <ThemedText style={styles.verifyButtonText}>
+                        {isVerifying ? 'Verifying...' : checkingVerification ? 'Checking...' : 'Verify'}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  )}
                   
                   {/* Provider Icons */}
                   {bubble.verification?.providers && bubble.verification.providers.length > 0 && (
@@ -274,38 +339,63 @@ export function BubbleCard({
           {/* Stats Row */}
           <View style={styles.statsRow}>
             {/* Member Count */}
-            <View style={styles.statItem}>
-              <IconSymbol name="person.2.fill" size={14} color={tintColor} />
-              <ThemedText style={[styles.statText, { color: tintColor }]}>
-                {bubble.memberCount || 0} members
-              </ThemedText>
+            <View style={styles.counterIcons}>
+              <View style={styles.statItem}>
+                <MaterialIcons name="people" size={14} color={tintColor} />
+                <ThemedText style={[styles.statText, { color: tintColor }]}>
+                  {bubble.memberCount || 0}
+                </ThemedText>
+              </View>
+
+              {/* Post Count */}
+              <View style={styles.statItem}>
+                <MaterialIcons name="chat-bubble" size={14} color={tintColor} />
+                <ThemedText style={[styles.statText, { color: tintColor }]}>
+                  {bubble.postCount || 0}
+                </ThemedText>
+              </View>
             </View>
 
-            {/* Post Count */}
-            <View style={styles.statItem}>
-              <IconSymbol name="bubble.left.fill" size={14} color={tintColor} />
-              <ThemedText style={[styles.statText, { color: tintColor }]}>
-                {bubble.postCount || 0} posts
-              </ThemedText>
-            </View>
 
             {/* Permission Icons */}
             <View style={styles.permissionIcons}>
               {/* Read Permission */}
               <View style={[styles.permissionIcon, { borderColor: tabIconDefault }]}>
-                <IconSymbol 
-                  name={bubble.permissions.read === 'public' ? "eye" : "eye.slash"} 
+                <MaterialIcons 
+                  name={
+                    bubble.permissions.read === 'public' 
+                      ? "visibility" 
+                      : bubble.permissions.read === 'verified' && verificationInfo.isUserVerified
+                        ? "visibility"
+                        : "visibility-off"
+                  } 
                   size={12} 
-                  color={bubble.permissions.read === 'public' ? '#4CAF50' : '#FF9800'} 
+                  color={
+                    bubble.permissions.read === 'public' || 
+                    (bubble.permissions.read === 'verified' && verificationInfo.isUserVerified)
+                      ? '#4CAF50' 
+                      : '#FF9800'
+                  } 
                 />
               </View>
               
               {/* Write Permission */}
               <View style={[styles.permissionIcon, { borderColor: tabIconDefault }]}>
-                <IconSymbol 
-                  name={bubble.permissions.write === 'public' ? "pencil" : "lock"} 
+                <MaterialIcons 
+                  name={
+                    bubble.permissions.write === 'public' 
+                      ? "edit" 
+                      : bubble.permissions.write === 'verified' && verificationInfo.isUserVerified
+                        ? "lock-open"
+                        : "lock"
+                  } 
                   size={12} 
-                  color={bubble.permissions.write === 'public' ? '#4CAF50' : '#FF9800'} 
+                  color={
+                    bubble.permissions.write === 'public' || 
+                    (bubble.permissions.write === 'verified' && verificationInfo.isUserVerified)
+                      ? '#4CAF50' 
+                      : '#FF9800'
+                  } 
                 />
               </View>
             </View>
@@ -352,11 +442,18 @@ const styles = StyleSheet.create({
   badgeContainer: {
     alignItems: 'flex-end',
   },
-  verificationBadgeContainer: {
+  verificationIconContainer: {
     alignItems: 'flex-end',
     gap: 8,
   },
-  verificationBadge: {
+  verificationIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
@@ -364,7 +461,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 4,
   },
-  badgeText: {
+  verifyButtonText: {
     fontSize: 11,
     fontWeight: '600',
     color: '#fff',
@@ -414,6 +511,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  counterIcons: {
+    flexDirection: 'row',
+    alignItems: 'center'
   },
   permissionIcon: {
     width: 24,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAbstraxionSigningClient, useAbstraxionAccount, useAbstraxionClient } from '@/lib/abstraxion';
 import { createPlatformVerificationService } from '@/services/verificationService';
 import { VerificationRequest, VerificationResult, BubbleVerification, VerificationProvider } from '@/types/bubble';
@@ -11,16 +11,18 @@ export function useVerification() {
   const { data: account } = useAbstraxionAccount();
   
   const contractAddress = process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS || '';
-  const collectionName = process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
+  const collectionName = 'bubbles'; // Explicitly set collection name
 
-  // Create verification service instance - use queryClient for reads, signingClient for writes
-  const verificationService = createPlatformVerificationService({
-    client: queryClient || signingClient, // Prefer queryClient for general operations
-    signingClient, // Add signingClient for transactions
-    account: account || null,
-    contractAddress,
-    collectionName
-  });
+  // Create verification service instance with useMemo to prevent recreation on every render
+  const verificationService = useMemo(() => {
+    return createPlatformVerificationService({
+      client: queryClient || signingClient, // Prefer queryClient for general operations
+      signingClient, // Add signingClient for transactions
+      account: account || null,
+      contractAddress,
+      collectionName
+    });
+  }, [queryClient, signingClient, account, contractAddress, collectionName]);
 
   /**
    * Start verification process for a bubble
@@ -49,16 +51,29 @@ export function useVerification() {
   /**
    * Check if current user is verified for a bubble
    */
-  const checkUserVerification = useCallback(async (bubbleId: string): Promise<boolean> => {
-    if (!account?.bech32Address) return false;
-
-    try {
-      return await verificationService.isUserVerified(bubbleId, account.bech32Address);
-    } catch (err) {
-      console.error('Error checking user verification:', err);
+    const checkUserVerification = useCallback(async (bubbleId: string) => {
+    if (!account?.bech32Address) {
+      console.log(`[useVerification] No account address available for verification check`);
       return false;
     }
-  }, [verificationService, account]);
+
+    // Check if client is available before proceeding
+    if (!queryClient && !signingClient) {
+      console.log(`[useVerification] No client available for verification check`);
+      return false;
+    }
+
+    // Check if verification service is ready
+    if (!verificationService.isReady()) {
+      console.log(`[useVerification] Verification service not ready`);
+      return false;
+    }
+    
+    console.log(`[useVerification] Checking verification for bubble ${bubbleId} and account ${account.bech32Address}`);
+    const result = await verificationService.isUserVerified(bubbleId, account.bech32Address);
+    console.log(`[useVerification] Verification result:`, result);
+    return result;
+  }, [account?.bech32Address, queryClient, signingClient, verificationService]);
 
   /**
    * Get user's verification details for a bubble

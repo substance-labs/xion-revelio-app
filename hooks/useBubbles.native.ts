@@ -28,6 +28,7 @@ export function useBubbles() {
       client: signingClient, // Use signing client for write operations
       account,
       contractAddress,
+      collectionName: process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles', // Explicitly set collection name
     });
   }, [signingClient, account]);
 
@@ -47,6 +48,7 @@ export function useBubbles() {
       client,
       account: null, // No account needed for reading
       contractAddress,
+      collectionName: 'bubbles', // Explicitly set collection name
     });
   }, [client]); // Only depends on client, not account
 
@@ -135,6 +137,12 @@ export function useBubbles() {
 
   // Cleanup test bubbles
   const cleanupTestBubbles = useCallback(async () => {
+    console.log('=== CLEANUP DEBUG START ===');
+    console.log('bubbleService available:', !!bubbleService);
+    console.log('account in hook:', account);
+    console.log('account address in hook:', account?.bech32Address);
+    console.log('signingClient available:', !!signingClient);
+    
     if (!bubbleService) {
       throw new Error('Bubble service not available');
     }
@@ -153,7 +161,7 @@ export function useBubbles() {
       console.error('useBubbles (native): Failed to cleanup test bubbles:', error);
       throw error;
     }
-  }, [bubbleService, fetchBubbles]);
+  }, [bubbleService, fetchBubbles, account, signingClient]);
 
   // Get a specific bubble by ID
   const getBubble = useCallback(async (bubbleId: string): Promise<BubbleMetadata | null> => {

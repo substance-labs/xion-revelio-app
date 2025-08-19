@@ -14,10 +14,21 @@ export class BubbleService {
   private collectionName: string;
 
   constructor({ client, account, contractAddress, collectionName }: BubbleServiceDependencies) {
+    console.log('BubbleService constructor called with:', {
+      clientAvailable: !!client,
+      account: account,
+      accountAddress: account?.bech32Address,
+      contractAddress,
+      collectionName
+    });
+    
     this.client = client;
     this.account = account;
     this.contractAddress = contractAddress;
+    // Ensure we always have a collection name, fallback to 'bubbles'
     this.collectionName = collectionName || process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
+    
+    console.log('BubbleService initialized with collection:', this.collectionName);
   }
 
   /**
@@ -54,6 +65,40 @@ export class BubbleService {
   }
 
   /**
+   * Calculate the post count for a bubble by querying the posts collection
+   */
+  private async calculatePostCount(bubbleId: string): Promise<number> {
+    try {
+      const response = await this.client.queryContractSmart(this.contractAddress, {
+        Collection: {
+          collection: 'posts'
+        }
+      });
+
+      if (!response?.documents) {
+        return 0;
+      }
+
+      let postCount = 0;
+      response.documents.forEach(([key, doc]: [string, any]) => {
+        try {
+          const postData = JSON.parse(doc.data);
+          if (postData.bubbleId === bubbleId) {
+            postCount++;
+          }
+        } catch (parseError) {
+          // Skip invalid posts
+        }
+      });
+
+      return postCount;
+    } catch (error) {
+      console.error(`Error calculating post count for bubble ${bubbleId}:`, error);
+      return 0; // Return 0 if there's an error
+    }
+  }
+
+  /**
    * Fetch all bubbles in the collection (for discovery and joining)
    * This method doesn't require authentication - anyone can browse bubbles
    */
@@ -75,11 +120,18 @@ export class BubbleService {
       
       const bubbles: BubbleMetadata[] = [];
       
-      response.documents.forEach(([key, doc]: [string, any]) => {
+      // Process each bubble document
+      for (const [key, doc] of response.documents) {
         try {
           const bubbleData = JSON.parse(doc.data);
 
           if (this.isValidBubbleMetadata(bubbleData)) {
+            // Calculate the real-time post count
+            const postCount = await this.calculatePostCount(bubbleData.id);
+            
+            // Update the bubble data with the real post count
+            bubbleData.postCount = postCount;
+            
             bubbles.push(bubbleData as BubbleMetadata);
           } else {
             console.warn(`Invalid bubble data for ${key}, skipping`);
@@ -87,7 +139,7 @@ export class BubbleService {
         } catch (parseError) {
           console.error(`Error parsing bubble data for ${key}:`, parseError);
         }
-      });
+      }
 
       return bubbles;
     } catch (error) {
@@ -118,11 +170,18 @@ export class BubbleService {
       
       const bubbles: BubbleMetadata[] = [];
       
-      response.documents.forEach(([key, doc]: [string, any]) => {
+      // Process each bubble document
+      for (const [key, doc] of response.documents) {
         try {
           const bubbleData = JSON.parse(doc.data);
           
           if (this.isValidBubbleMetadata(bubbleData)) {
+            // Calculate the real-time post count
+            const postCount = await this.calculatePostCount(bubbleData.id);
+            
+            // Update the bubble data with the real post count
+            bubbleData.postCount = postCount;
+            
             bubbles.push(bubbleData as BubbleMetadata);
           } else {
             console.warn(`Invalid bubble data for ${key}:`, bubbleData);
@@ -130,7 +189,7 @@ export class BubbleService {
         } catch (parseError) {
           console.error(`Error parsing bubble data for ${key}:`, parseError);
         }
-      });
+      }
 
       return bubbles;
     } catch (error) {
@@ -209,7 +268,13 @@ export class BubbleService {
         return null;
       }
 
-      return JSON.parse(response.data);
+      const bubbleData = JSON.parse(response.data);
+      
+      // Calculate the real-time post count
+      const postCount = await this.calculatePostCount(bubbleId);
+      bubbleData.postCount = postCount;
+
+      return bubbleData;
     } catch (error) {
       console.error(`Error fetching bubble ${bubbleId}:`, error);
       throw error;
@@ -314,18 +379,27 @@ export class BubbleService {
    * Cleanup test bubbles - delete ALL bubbles owned by current user
    */
   async cleanupTestBubbles(): Promise<{ deleted: string[], failed: string[] }> {
+    console.log('=== CLEANUP SERVICE DEBUG ===');
+    console.log('Client available:', !!this.client);
+    console.log('Account object:', this.account);
+    console.log('Account address:', this.account?.bech32Address);
+    console.log('Account type:', typeof this.account);
+    console.log('Account keys:', this.account ? Object.keys(this.account) : 'null');
+    
     if (!this.client) {
       throw new Error('Client not available');
     }
 
     if (!this.account?.bech32Address) {
-      throw new Error('Account not available');
+      const errorMsg = `Account not available. Account: ${JSON.stringify(this.account)}, Address: ${this.account?.bech32Address}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     const deleted: string[] = [];
     const failed: string[] = [];
 
-    const cleanupCollection = 'bubbles'; // Use explicit collection name
+    const cleanupCollection = process.env.EXPO_PUBLIC_BUBBLES_COLLECTION || 'bubbles';
 
     console.log('Starting cleanup of ALL user bubbles...');
     console.log('Current user address:', this.account.bech32Address);

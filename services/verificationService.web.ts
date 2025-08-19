@@ -17,6 +17,10 @@ export class VerificationService {
     // Stub implementation
   }
 
+  isReady(): boolean {
+    return false; // Web version is not ready for verification
+  }
+
   async isUserVerified(bubbleId: string, walletAddress: string): Promise<boolean> {
     return false;
   }
