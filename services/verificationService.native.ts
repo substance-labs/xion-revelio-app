@@ -414,11 +414,7 @@ export class VerificationService {
   /**
    * Get verification status message
    */
-  getVerificationStatusMessage(): string {
-    if (Platform.OS === 'web') {
-      return 'Verification not supported on web platform';
-    }
-    
+  getVerificationStatusMessage(): string {    
     if (!this.reclaimVerification) {
       return 'ReclaimVerification client not initialized';
     }

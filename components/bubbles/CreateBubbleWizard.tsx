@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { CreateBubbleFormData } from '@/types/bubble';
 import { useVerification } from '@/hooks/useVerification';
+import { ProviderIconComponent } from '@/components/ui/ProviderIcons';
 
 interface CreateBubbleWizardProps {
   visible: boolean;
@@ -24,6 +25,26 @@ export function CreateBubbleWizard({ visible, onClose, onCreate }: CreateBubbleW
 
   const [loading, setLoading] = useState(false);
   const [dropdownVisible, setDropdownVisible] = useState(false);
+
+  // Provider Icon Component with fallback
+  const ProviderIcon = ({ 
+    providerName, 
+    size = 24, 
+    style = {} 
+  }: { 
+    providerName: string; 
+    size?: number; 
+    style?: any 
+  }) => {
+    return (
+      <View style={[styles.providerIconContainer, { width: size, height: size }, style]}>
+        <ProviderIconComponent 
+          provider={providerName} 
+          size={size} 
+        />
+      </View>
+    );
+  };
 
   // Helper function to get provider description
   const getProviderDescription = (providerName: string): string => {
@@ -171,11 +192,10 @@ export function CreateBubbleWizard({ visible, onClose, onCreate }: CreateBubbleW
                       <View style={styles.comboboxTextContainer}>
                         {formData.verification?.provider ? (
                           <>
-                            <View style={[styles.providerIcon, { backgroundColor: getProviderColor(formData.verification.provider.name) }]}>
-                              <ThemedText style={styles.providerIconText}>
-                                {formData.verification.provider.name.charAt(0).toUpperCase()}
-                              </ThemedText>
-                            </View>
+                            <ProviderIcon 
+                              providerName={formData.verification.provider.name} 
+                              size={24} 
+                            />
                             <ThemedText 
                               style={[styles.comboboxText, { color: textColor }]}
                               numberOfLines={1}
@@ -186,9 +206,10 @@ export function CreateBubbleWizard({ visible, onClose, onCreate }: CreateBubbleW
                           </>
                         ) : (
                           <>
-                            <View style={[styles.providerIcon, styles.providerIconEmpty, { borderColor: borderColor }]}>
-                              <IconSymbol name="shield" size={12} color={tabIconDefault} />
-                            </View>
+                            <ProviderIcon 
+                              providerName="logo" 
+                              size={24} 
+                            />
                             <ThemedText 
                               style={[styles.comboboxPlaceholder, { color: tabIconDefault }]}
                               numberOfLines={1}
@@ -236,9 +257,10 @@ export function CreateBubbleWizard({ visible, onClose, onCreate }: CreateBubbleW
                         }}
                       >
                         <View style={styles.comboboxOptionContent}>
-                          <View style={[styles.providerIcon, styles.providerIconEmpty, { borderColor: borderColor }]}>
-                            <IconSymbol name="slash.circle" size={12} color={tabIconDefault} />
-                          </View>
+                          <ProviderIcon 
+                            providerName="logo" 
+                            size={24} 
+                          />
                           <View style={styles.comboboxOptionTextContainer}>
                             <ThemedText 
                               style={[
@@ -286,11 +308,10 @@ export function CreateBubbleWizard({ visible, onClose, onCreate }: CreateBubbleW
                           }}
                         >
                           <View style={styles.comboboxOptionContent}>
-                            <View style={[styles.providerIcon, { backgroundColor: getProviderColor(provider.name) }]}>
-                              <ThemedText style={styles.providerIconText}>
-                                {provider.name.charAt(0).toUpperCase()}
-                              </ThemedText>
-                            </View>
+                            <ProviderIcon 
+                              providerName={provider.name} 
+                              size={24} 
+                            />
                             <View style={styles.comboboxOptionTextContainer}>
                               <ThemedText 
                                 style={[
@@ -630,6 +651,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  providerIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  providerLogoImage: {
+    width: 24,
+    height: 24,
   },
   providerIconEmpty: {
     backgroundColor: 'transparent',

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAbstraxionSigningClient, useAbstraxionAccount, useAbstraxionClient } from '@burnt-labs/abstraxion-react-native';
+import { useAbstraxionSigningClient, useAbstraxionAccount, useAbstraxionClient } from '@/lib/abstraxion';
 import { createPlatformVerificationService } from '@/services/verificationService';
 import { VerificationRequest, VerificationResult, BubbleVerification, VerificationProvider } from '@/types/bubble';
 
