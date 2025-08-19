@@ -23,7 +23,7 @@ export function useBubbles() {
       console.error('DocuStore contract address not configured');
       return null;
     }
-
+    
     return createBubbleService({
       client: signingClient, // Use signing client for write operations
       account,
@@ -56,7 +56,6 @@ export function useBubbles() {
     const serviceToUse = readOnlyBubbleService || bubbleService;
     
     if (!serviceToUse) {
-      console.log('Cannot fetch bubbles - no service available');
       setIsLoading(false);
       return;
     }
@@ -65,7 +64,6 @@ export function useBubbles() {
     setError(null);
     
     try {
-      console.log('Fetching all bubbles using BubbleService...');
       const fetchedBubbles = await serviceToUse.fetchAllBubbles();
       setBubbles(fetchedBubbles);
     } catch (error) {
@@ -79,7 +77,6 @@ export function useBubbles() {
   // Fetch user's own bubbles only
   const fetchUserBubbles = useCallback(async () => {
     if (!bubbleService) {
-      console.log('Cannot fetch user bubbles - bubble service not available');
       setIsLoading(false);
       return;
     }
@@ -88,7 +85,6 @@ export function useBubbles() {
     setError(null);
     
     try {
-      console.log('Fetching user bubbles using BubbleService...');
       const fetchedBubbles = await bubbleService.fetchUserBubbles();
       setBubbles(fetchedBubbles);
     } catch (error) {
@@ -102,19 +98,43 @@ export function useBubbles() {
   // Default fetch function (fetch all bubbles for discovery)
   const fetchBubbles = fetchAllBubbles;
 
-  // Create a new bubble
+    // Create a new bubble
   const createBubble = useCallback(async (formData: CreateBubbleFormData): Promise<BubbleMetadata> => {
     if (!bubbleService) {
       throw new Error('Bubble service not available');
     }
 
-    const newBubble = await bubbleService.createBubble(formData);
-    
-    // Update local state to include the new bubble
-    setBubbles(prevBubbles => [...prevBubbles, newBubble]);
-    
-    return newBubble;
+    try {
+      const newBubble = await bubbleService.createBubble(formData);
+      
+      // Update local state to include the new bubble
+      setBubbles(prevBubbles => [...prevBubbles, newBubble]);
+      
+      return newBubble;
+    } catch (error) {
+      console.error('Failed to create bubble:', error);
+      throw error;
+    }
   }, [bubbleService]);
+
+  // Cleanup test bubbles
+  const cleanupTestBubbles = useCallback(async () => {
+    if (!bubbleService) {
+      throw new Error('Bubble service not available. Check wallet connection and signing client.');
+    }
+    
+    try {
+      const result = await bubbleService.cleanupTestBubbles();
+      
+      // Refresh the bubble list after cleanup
+      await fetchBubbles();
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to cleanup test bubbles:', error);
+      throw error;
+    }
+  }, [bubbleService, fetchBubbles]);
 
   // Get a specific bubble by ID
   const getBubble = useCallback(async (bubbleId: string): Promise<BubbleMetadata | null> => {
@@ -176,6 +196,7 @@ export function useBubbles() {
     getBubble,
     updateBubble,
     deleteBubble,
+    cleanupTestBubbles,
     
     // Service instance (for advanced use cases)
     bubbleService,

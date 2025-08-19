@@ -56,7 +56,7 @@ export function useBubbles() {
     const serviceToUse = readOnlyBubbleService || bubbleService;
     
     if (!serviceToUse) {
-      console.log('Cannot fetch bubbles - no service available');
+      console.log('useBubbles (native): Cannot fetch bubbles - no service available');
       setIsLoading(false);
       return;
     }
@@ -65,11 +65,12 @@ export function useBubbles() {
     setError(null);
     
     try {
-      console.log('Fetching all bubbles using BubbleService...');
+      console.log('useBubbles (native): Fetching all bubbles using BubbleService...');
       const fetchedBubbles = await serviceToUse.fetchAllBubbles();
+      console.log('useBubbles (native): Fetched all bubbles count:', fetchedBubbles.length);
       setBubbles(fetchedBubbles);
     } catch (error) {
-      console.error('Error fetching all bubbles:', error);
+      console.error('useBubbles (native): Error fetching all bubbles:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsLoading(false);
@@ -108,13 +109,51 @@ export function useBubbles() {
       throw new Error('Bubble service not available');
     }
 
-    const newBubble = await bubbleService.createBubble(formData);
+    console.log('useBubbles (native): Starting bubble creation with data:', formData);
+    console.log('useBubbles (native): Bubble service available:', !!bubbleService);
+    console.log('useBubbles (native): Account available:', !!account);
+    console.log('useBubbles (native): Signing client available:', !!signingClient);
+
+    try {
+      const newBubble = await bubbleService.createBubble(formData);
+      console.log('useBubbles (native): Bubble created successfully:', newBubble);
+      
+      // Update local state to include the new bubble
+      setBubbles(prevBubbles => {
+        console.log('useBubbles (native): Adding bubble to local state. Previous count:', prevBubbles.length);
+        const updated = [...prevBubbles, newBubble];
+        console.log('useBubbles (native): New bubble count:', updated.length);
+        return updated;
+      });
+      
+      return newBubble;
+    } catch (error) {
+      console.error('useBubbles (native): Failed to create bubble:', error);
+      throw error;
+    }
+  }, [bubbleService, account, signingClient]);
+
+  // Cleanup test bubbles
+  const cleanupTestBubbles = useCallback(async () => {
+    if (!bubbleService) {
+      throw new Error('Bubble service not available');
+    }
+
+    console.log('useBubbles (native): Starting test bubble cleanup');
     
-    // Update local state to include the new bubble
-    setBubbles(prevBubbles => [...prevBubbles, newBubble]);
-    
-    return newBubble;
-  }, [bubbleService]);
+    try {
+      const result = await bubbleService.cleanupTestBubbles();
+      console.log('useBubbles (native): Cleanup completed:', result);
+      
+      // Refresh the bubble list after cleanup
+      await fetchBubbles();
+      
+      return result;
+    } catch (error) {
+      console.error('useBubbles (native): Failed to cleanup test bubbles:', error);
+      throw error;
+    }
+  }, [bubbleService, fetchBubbles]);
 
   // Get a specific bubble by ID
   const getBubble = useCallback(async (bubbleId: string): Promise<BubbleMetadata | null> => {
@@ -176,6 +215,7 @@ export function useBubbles() {
     getBubble,
     updateBubble,
     deleteBubble,
+    cleanupTestBubbles,
     
     // Service instance (for advanced use cases)
     bubbleService,

@@ -1,30 +1,25 @@
 import { useState, useEffect, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, Alert, ScrollView, Switch, Platform, AppState } from "react-native";
-
-// Clean platform-specific imports for Abstraxion hooks
+import { View, TouchableOpacity, Alert, ScrollView, Switch, AppState } from "react-native";
 import {
   useAbstraxionAccount,
   useAbstraxionSigningClient,
   useAbstraxionClient,
 } from "@/lib/abstraxion";
-
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Picker } from "@react-native-picker/picker";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useThemeColor } from "@/hooks/useThemeColor";
-
-if (!process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS) {
-  throw new Error("EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS is not set in your environment file");
-}
+import { useBubbles } from "@/hooks/useBubbles";
 
 const contractAddress = process.env.EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS as string;
+
+if (!contractAddress) {
+  throw new Error("EXPO_PUBLIC_DOCUSTORE_CONTRACT_ADDRESS is not set in your environment file");
+}
 
 interface Settings {
   darkMode: boolean;
   notifications: boolean;
-  language: string;
-  timezone: string;
 }
 
 export default function Settings() {
@@ -32,6 +27,9 @@ export default function Settings() {
   const { data: account, login, logout, isConnected } = useAbstraxionAccount();
   const { client } = useAbstraxionSigningClient();
   const { client: queryClient } = useAbstraxionClient();
+  
+  // Bubbles hook for cleanup functionality
+  const { cleanupTestBubbles } = useBubbles();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -45,17 +43,10 @@ export default function Settings() {
   // State variables
   const [loading, setLoading] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
   const [settings, setSettings] = useState<Settings>({
-    darkMode: true,
+    darkMode: false,
     notifications: true,
-    language: "en",
-    timezone: "UTC"
-  });
-  const [editedSettings, setEditedSettings] = useState<Settings>({
-    darkMode: true,
-    notifications: true,
-    language: "en",
-    timezone: "UTC"
   });
 
   const { isDarkMode, toggleDarkMode } = useTheme();
@@ -99,9 +90,6 @@ export default function Settings() {
       fontSize: 14,
       color: textColor,
     },
-    pickerContainer: {
-      marginTop: 10,
-    },
     menuButton: {
       padding: 15,
       borderRadius: 10,
@@ -110,6 +98,13 @@ export default function Settings() {
     },
     logoutButton: {
       backgroundColor: errorColor,
+    },
+    cleanupButton: {
+      backgroundColor: '#ff9500', // Orange warning color
+    },
+    cleanupSection: {
+      backgroundColor: '#fff3cd', // Light warning background
+      borderColor: '#ffeaa7',
     },
     fullWidthButton: {
       width: '100%' as const,
@@ -177,18 +172,14 @@ export default function Settings() {
           const settingsData = JSON.parse(settingsDoc[1].data);
           console.log("Found settings data:", settingsData);
           setSettings(settingsData);
-          setEditedSettings(settingsData);
         } else {
           console.log("No settings document found, initializing default settings");
           // Initialize with default settings if none exists
           const defaultSettings: Settings = {
             darkMode: false,
             notifications: true,
-            language: "en",
-            timezone: "UTC"
           };
           setSettings(defaultSettings);
-          setEditedSettings(defaultSettings);
         }
       } else {
         console.log("No documents in response, initializing default settings");
@@ -196,11 +187,8 @@ export default function Settings() {
         const defaultSettings: Settings = {
           darkMode: false,
           notifications: true,
-          language: "en",
-          timezone: "UTC"
         };
         setSettings(defaultSettings);
-        setEditedSettings(defaultSettings);
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -208,11 +196,8 @@ export default function Settings() {
       const defaultSettings: Settings = {
         darkMode: false,
         notifications: true,
-        language: "en",
-        timezone: "UTC"
       };
       setSettings(defaultSettings);
-      setEditedSettings(defaultSettings);
     } finally {
       setLoading(false);
     }
@@ -245,6 +230,61 @@ export default function Settings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Cleanup all user bubbles
+  const handleCleanupTestBubbles = async () => {
+    // Check if cleanup is available
+    if (!cleanupTestBubbles) {
+      Alert.alert(
+        'Service Unavailable',
+        'Bubble cleanup service is not available. Please ensure your wallet is connected and try again.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Cleanup All Bubbles',
+      'This will delete ALL your bubbles to make room for new ones in the 30-document limit. This action cannot be undone. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            setIsCleaningUp(true);
+            try {
+              console.log('Starting cleanup process...');
+              console.log('Account:', account);
+              console.log('Is connected:', isConnected);
+              console.log('Signing client available:', !!client);
+              console.log('Query client available:', !!queryClient);
+              
+              const result = await cleanupTestBubbles();
+              
+              Alert.alert(
+                'Cleanup Complete',
+                `Successfully deleted ${result.deleted.length} bubbles.\n${result.failed.length > 0 ? `Failed to delete ${result.failed.length} bubbles.` : 'This should make room for new bubbles to appear.'}`,
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              console.error('Cleanup error:', error);
+              Alert.alert(
+                'Cleanup Failed',
+                error instanceof Error ? error.message : 'Unknown error occurred',
+                [{ text: 'OK' }]
+              );
+            } finally {
+              setIsCleaningUp(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Effect to fetch settings when account changes
@@ -357,24 +397,30 @@ export default function Settings() {
               </View>
             </ThemedView>
 
-            {/* Language */}
-            <ThemedView style={themedStyles.section}>
-              <ThemedText type="defaultSemiBold" style={themedStyles.settingTitle}>Language</ThemedText>
-              <View style={themedStyles.pickerContainer}>
-                <ThemedText style={themedStyles.settingDescription}>
-                  Current language: {settings.language}
+            {/* Cleanup All Bubbles */}
+            <ThemedView style={[themedStyles.section, themedStyles.cleanupSection]}>
+              <ThemedText type="defaultSemiBold" style={themedStyles.settingTitle}>
+                🧹 Database Cleanup
+              </ThemedText>
+              <ThemedText style={[themedStyles.settingDescription, { marginBottom: 12, color: '#856404' }]}>
+                Remove ALL your bubbles.
+              </ThemedText>
+              <TouchableOpacity
+                onPress={handleCleanupTestBubbles}
+                style={[
+                  themedStyles.menuButton, 
+                  themedStyles.cleanupButton, 
+                  themedStyles.fullWidthButton,
+                  (isCleaningUp || loading || !isConnected || !account?.bech32Address) && themedStyles.disabledButton
+                ]}
+                disabled={isCleaningUp || loading || !isConnected || !account?.bech32Address}
+              >
+                <ThemedText style={themedStyles.buttonText}>
+                  {isCleaningUp ? "Cleaning up..." : 
+                   !isConnected || !account?.bech32Address ? "Connect wallet first" : 
+                   "Delete All My Bubbles"}
                 </ThemedText>
-              </View>
-            </ThemedView>
-
-            {/* Timezone */}
-            <ThemedView style={themedStyles.section}>
-              <ThemedText type="defaultSemiBold" style={themedStyles.settingTitle}>Timezone</ThemedText>
-              <View style={themedStyles.pickerContainer}>
-                <ThemedText style={themedStyles.settingDescription}>
-                  Current timezone: {settings.timezone}
-                </ThemedText>
-              </View>
+              </TouchableOpacity>
             </ThemedView>
 
             {/* Logout Button */}
