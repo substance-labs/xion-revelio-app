@@ -76,3 +76,44 @@ export type VerificationResult = {
   proof?: ReclaimProof;
   error?: string;
 };
+
+// Post and Comment types
+export type PostComment = {
+  id: string;
+  postId: string;
+  bubbleId: string;
+  content: string;
+  author: string; // wallet address
+  createdAt: string;
+  parentCommentId?: string; // for nested replies
+};
+
+export type BubblePost = {
+  id: string;
+  bubbleId: string;
+  title: string;
+  content: string;
+  author: string; // wallet address
+  createdAt: string;
+  updatedAt?: string;
+  commentCount: number;
+  tags?: string[];
+  reactions?: {
+    likes: number;
+    dislikes: number;
+  };
+};
+
+export type CreatePostFormData = {
+  bubbleId: string;
+  title: string;
+  content: string;
+  tags?: string[];
+};
+
+export type CreateCommentFormData = {
+  postId: string;
+  bubbleId: string;
+  content: string;
+  parentCommentId?: string;
+};

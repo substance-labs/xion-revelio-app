@@ -32,22 +32,6 @@ export function CreateBubbleButton({ onPress }: CreateBubbleButtonProps) {
         </View>
         <IconSymbol name="chevron.right" size={14} color="rgba(255,255,255,0.8)" />
       </TouchableOpacity>
-      
-      {/* Feature hints */}
-      <View style={styles.featuresContainer}>
-        <View style={styles.featureItem}>
-          <IconSymbol name="shield.checkered" size={12} color={tintColor} />
-          <ThemedText style={styles.featureText}>Verification</ThemedText>
-        </View>
-        <View style={styles.featureItem}>
-          <IconSymbol name="person.2" size={12} color={tintColor} />
-          <ThemedText style={styles.featureText}>Community</ThemedText>
-        </View>
-        <View style={styles.featureItem}>
-          <IconSymbol name="lock.shield" size={12} color={tintColor} />
-          <ThemedText style={styles.featureText}>Secure</ThemedText>
-        </View>
-      </View>
     </View>
   );
 }

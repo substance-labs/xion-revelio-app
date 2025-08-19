@@ -66,36 +66,6 @@ export function BubblesList({
   return (
     <View style={styles.container}>
       {/* Stats Header */}
-      {totalBubbles > 0 && (
-        <View style={styles.statsHeader}>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <IconSymbol name="bubble.middle.bottom" size={16} color={tintColor} />
-              <ThemedText style={[styles.statText, { color: textColor }]}>
-                {totalBubbles} {totalBubbles === 1 ? 'Bubble' : 'Bubbles'}
-              </ThemedText>
-            </View>
-            
-            {verifiedBubbles > 0 && (
-              <View style={styles.statItem}>
-                <IconSymbol name="checkmark.shield" size={16} color="#4CAF50" />
-                <ThemedText style={[styles.statText, { color: textColor }]}>
-                  {verifiedBubbles} Verified
-                </ThemedText>
-              </View>
-            )}
-            
-            {totalPosts > 0 && (
-              <View style={styles.statItem}>
-                <IconSymbol name="text.bubble" size={16} color={tintColor} />
-                <ThemedText style={[styles.statText, { color: textColor }]}>
-                  {totalPosts} Posts
-                </ThemedText>
-              </View>
-            )}
-          </View>
-        </View>
-      )}
       {bubbles.map((bubble) => {
         return (
           <BubbleCard
