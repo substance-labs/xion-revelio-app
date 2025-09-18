@@ -13,13 +13,17 @@ const MAPPING = {
   'plus.circle.fill': 'add-circle',
   'person.fill': 'person',
   'gear': 'settings',
+  'chevron.left': 'chevron-left',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'checkmark': 'check',
   'checkmark.circle.fill': 'check-circle',
+  'xmark': 'close',
   'trash.fill': 'delete',
   'pencil': 'edit',
   'circle': 'radio-button-unchecked',
   'bubble': 'bubble-chart',
+  'bubble.right': 'bubble-chart',
 } as Partial<
   Record<
     import('expo-symbols').SymbolViewProps['name'],
